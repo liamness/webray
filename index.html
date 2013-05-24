@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+
+<head>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript" src="dat.gui.min.js"></script>
+<title>raytracer demo</title>
+<link rel=”shortcut icon” href=”favicon.ico” type=”image/x-icon” />
+<style>
+html, body {
+	width: 100%;
+	height: 100%;
+}
+
+body {
+	border: 0;
+	margin: 0;
+}
+
+#demoWrap {
+	width: 100%;
+	height: 100%;
+	text-align: center;
+	overflow: hidden;
+}
+
+#canvas {
+	position: relative;
+}
+</style>
+</head>
+
+<body>
+	<div id="demoWrap">
+		<canvas id="canvas">If you're seeing this, it probably means your browser doesn't support WebGL, and so you can't see this lovely demo. :(</canvas>
+    </div>
+    
+    <script id="shader-fs" type="x-shader/x-fragment">
+	
+	#ifdef GL_ES
+	precision mediump float;
+	#endif
+
+	uniform vec2 uResolution;
+	uniform vec3 uLightDir;
+	uniform vec3 uLightCol;
+	uniform vec3 uAmbientCol;
+
+	//sphere at origin |xyz| = r
+	//so |xyz|^2 = r^2
+	///////
+	//sph is sphere x, y, z; w is radius
+	float intersectSphere( in vec3 ro, in vec3 rd, in vec4 sph ) {
+		//at origin 0,0,0
+		vec3 coord = ro - sph.xyz;
+		float b = 2.0 * dot( coord, rd );
+		float c = dot( coord, coord ) - sph.w*sph.w;
+		float h = b*b - 4.0*c;
+		if( h < 0.0 ){
+			return -1.0;
+		}
+		float t = ( -b - sqrt( h )) / 2.0;
+		return t;
+	}
+
+	//calcuate sphere normals
+	vec3 nSphere( in vec3 pos, in vec4 sph ){
+		return (pos - sph.xyz)/sph.w;
+	}
+
+	//plane is easy (y=0)!
+	float intersectPlane( in vec3 ro, in vec3 rd ){
+		return -ro.y / rd.y;
+	}
+
+	//plane normals; easy again!
+	vec3 nPlane( in vec3 pos ){
+		return vec3( 0.0, 1.0, 0.0 );
+	}
+
+
+	//SPHERE DATA
+	vec4 sphereOne = vec4( 0.0, 1.0, 0.0, 1.0 );
+
+	float intersect( in vec3 ro, in vec3 rd, out float resT ) {
+	
+		resT = 1000.0;
+		float id = -1.0;
+		float tSphere = intersectSphere( ro, rd, sphereOne);
+		float tPlane = intersectPlane( ro, rd );
+	
+		if( tSphere > 0.0 ){
+			id = 1.0;
+			resT = tSphere;	
+		}
+		if( tPlane > 0.0 && tPlane < resT ){
+			id = 2.0;
+			resT = tPlane;	
+		}
+	
+		return id;
+	}
+
+	void main( void ) {
+
+		//vec3 light = normalize( vec3( 0.7123 ) );
+		vec3 light = normalize( uLightDir );
+
+		/*//sphere animation
+		sphereOne.x = cos( time );
+		sphereOne.z = sin( time );
+		sphereOne.y = 1.5 + 0.25 * cos( time );*/
+	
+		//pixel coords from 0 to 1
+		vec2 uv;
+		if( uResolution.x > uResolution.y ) {
+			float offset = (uResolution.x - uResolution.y) / (2.0 * uResolution.x);
+			uv = vec2(gl_FragCoord.x / uResolution.x, gl_FragCoord.y / uResolution.x + offset);
+		} else {
+			float offset = (uResolution.y - uResolution.x) / (2.0 * uResolution.y);
+			uv = vec2(gl_FragCoord.x / uResolution.y + offset, gl_FragCoord.y / uResolution.y);
+		}
+	
+		//ray origin
+		vec3 ro = vec3( 0.0, 1.0, 4.0 );
+	
+		//ray direction
+		//normalize -> length 1
+		vec3 rd = normalize( vec3( -1.0 + 2.0 * uv, -1.0 ) );
+	
+		float t;
+		float id = intersect( ro, rd, t ); //check intersections
+	
+		//need lights, so need normals
+		//black for empty
+		vec3 col = vec3( 0.0 );
+	
+		if( id > 0.5 && id < 1.5 ) {
+			//if intersected with sphere...
+			vec3 position = ro + t * rd;
+			vec3 normal = nSphere( position, sphereOne );
+			float dif = clamp( dot( normal, light ), 0.0, 1.0 ); //diffuse lighting
+			float ao = 0.5 + 0.5*normal.y; 
+			col = uLightCol * dif * ao + uAmbientCol * ao;
+		} else if( id > 1.5 ){
+			//if intersected with plane...
+			vec3 position = ro + t*rd;
+			vec3 normal = nPlane( position );
+			float dif = clamp( dot(normal, light), 0.0, 1.0 );
+			float amb = smoothstep( 0.0, 2.0 * sphereOne.w, length( position.xz - sphereOne.xz ) );
+			col = vec3( amb*0.9 );
+		}
+	
+		col = sqrt( col ); //hrmmmmmm
+		gl_FragColor = vec4( col, 1.0 );
+
+	}
+    
+	</script>
+
+	<script id="shader-vs" type="x-shader/x-vertex">
+	
+	attribute vec2 aSquareVertexPosition;
+	
+    void main(void) {
+        gl_Position = vec4(aSquareVertexPosition, 0.0, 1.0);
+    }
+    
+	</script>
+    
+    <script type="text/javascript">
+    
+    window.onload = init;
+    window.onresize = resizeWindow;
+    
+    
+    /*
+    	webgl Setup
+    */
+    
+    var gl;
+
+    function initGL(canvas) {
+        try {
+            gl = canvas.getContext("experimental-webgl", {
+            	antialias: true,
+            	preserveDrawingBuffer: true
+            });
+        } catch (e) {
+        }
+        if (!gl) {
+            alert("Could not initialise WebGL, sorry :-(");
+        }
+    }
+
+    function getShader(gl, id) {
+        var shaderScript = document.getElementById(id);
+        if (!shaderScript) {
+            return null;
+        }
+
+        var str = "";
+        var k = shaderScript.firstChild;
+        while (k) {
+            if (k.nodeType == 3) {
+                str += k.textContent;
+            }
+            k = k.nextSibling;
+        }
+
+        var shader;
+        if (shaderScript.type == "x-shader/x-fragment") {
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        } else if (shaderScript.type == "x-shader/x-vertex") {
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        } else {
+            return null;
+        }
+
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+
+        return shader;
+    }
+
+    var shaderProgram;
+
+    function initShaders() {
+        var fragmentShader = getShader(gl, "shader-fs");
+        var vertexShader = getShader(gl, "shader-vs");
+
+        shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialise shaders");
+        }
+
+        gl.useProgram(shaderProgram);
+
+        shaderProgram.squareVertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aSquareVertexPosition");
+        gl.enableVertexAttribArray(shaderProgram.squareVertexPositionAttribute);
+        
+        resizeCanvas( 400, 400 );
+        updateUniforms();
+    }
+    
+    function updateUniforms() {
+        
+        var uLightDirLoc = gl.getUniformLocation(shaderProgram, "uLightDir");
+        gl.uniform3f(uLightDirLoc, guiElems.lightDirX, guiElems.lightDirY, guiElems.lightDirZ);
+        
+        var uLightColLoc = gl.getUniformLocation(shaderProgram, "uLightCol");
+        gl.uniform3f(uLightColLoc, guiElems.lightCol[0] / 255, guiElems.lightCol[1] / 255, guiElems.lightCol[2] / 255, guiElems.lightCol[3] / 255);
+        
+        var uAmbientColLoc = gl.getUniformLocation(shaderProgram, "uAmbientCol");
+        gl.uniform3f(uAmbientColLoc, guiElems.ambientCol[0] / 255, guiElems.ambientCol[1] / 255, guiElems.ambientCol[2] / 255, guiElems.ambientCol[3] / 255);
+        
+    }
+    
+    var squareVertexPositionBuffer;
+
+    function initVertexBuffer() {
+        squareVertexPositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
+        var vertices = [
+             1.0,  1.0,
+            -1.0,  1.0,
+             1.0, -1.0,
+            -1.0, -1.0
+        ];
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+        squareVertexPositionBuffer.itemSize = 2;
+        squareVertexPositionBuffer.numItems = 4;
+        gl.vertexAttribPointer(shaderProgram.squareVertexPositionAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    }
+    
+    var canvas, canvas_rect;
+    
+    
+    /*
+    	program Setup
+    */
+    
+    function init() {
+        canvas = document.getElementById("canvas");
+        initGL(canvas);
+        initShaders();
+        initVertexBuffer();
+        canvas_rect = canvas.getBoundingClientRect();
+
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+		
+		initGUI();
+		resizeWindow();
+        draw();
+    }
+    
+    var gui = new dat.GUI();
+    var guiElems = {
+		lightDirX: 1.0,
+		lightDirY: 1.0,
+		lightDirZ: 1.0,
+		lightCol: [ 200, 150, 100 ],
+		ambientCol: [ 100, 100, 200 ],
+		canvasSize: 0
+	};
+    function initGUI() {
+		var f1 = gui.addFolder('Light Options');
+		var f2 = gui.addFolder('Render Options');
+    	var controllers = [
+			f1.add( guiElems, 'lightDirX', -1.0, 1.0 ),
+			f1.add( guiElems, 'lightDirY', -1.0, 1.0 ),
+			f1.add( guiElems, 'lightDirZ', -1.0, 1.0 ),
+			f1.addColor( guiElems, 'lightCol' ),
+			f1.addColor( guiElems, 'ambientCol' ),
+		];
+		
+		for (var i = 0; i < controllers.length; i++) {
+    		controllers[i].onChange( function() {
+    			update();
+    		});
+  		}
+  		
+  		var sizeController = f2.add( guiElems, 'canvasSize', {
+			small: 0,
+			medium: 1,
+			large: 2,
+			fullscreen: 3
+		} );
+		sizeController.onFinishChange( function() {
+			if( guiElems.canvasSize == 0 ) {
+				resizeCanvas( 400, 400 );
+				resizeWindow();
+			} else if( guiElems.canvasSize == 1 ) {
+				resizeCanvas( 640, 480 );
+				resizeWindow();
+			} else if( guiElems.canvasSize == 2 ) {
+				resizeCanvas( 1080, 720 );
+				resizeWindow();
+			} else if( guiElems.canvasSize == 3 ) {
+				resizeWindow();
+				draw();
+			}
+		} );
+		
+		f1.open();
+    }
+    
+    /*
+    	program functions
+    */
+    
+    function resizeWindow() {
+    	if( guiElems.canvasSize == 3 ) {
+    		resizeCanvas( $(window).width(), $(window).height() );
+    		$("#canvas").css( "top", 0);
+    		draw();
+    	} else {
+    		$("#canvas").css( "top", ($(window).height() - $("#canvas").outerHeight()) / 2);
+    	}
+    }
+    
+    function resizeCanvas( width, height ) {
+    	canvas.width = width;
+    	canvas.height = height;
+    	gl.viewportWidth = width;
+        gl.viewportHeight = height;
+        var uResolutionLoc = gl.getUniformLocation(shaderProgram, "uResolution");
+        gl.uniform2f(uResolutionLoc, width, height);
+    }
+    
+    
+    /*
+    	update functions
+    */
+    
+    function update() {
+    	
+    	updateUniforms();
+    	draw();
+    	
+    }
+    
+    function draw() {
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems);
+    }
+    
+	</script>
+    
+</body>
+
+</html>
