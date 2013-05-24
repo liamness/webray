@@ -47,6 +47,8 @@ body {
 	uniform vec3 uLightDir;
 	uniform vec3 uLightCol;
 	uniform vec3 uAmbientCol;
+	uniform vec3 uCameraPos;
+	uniform vec3 uCameraDir;
 
 	//sphere at origin |xyz| = r
 	//so |xyz|^2 = r^2
@@ -124,7 +126,7 @@ body {
 		}
 	
 		//ray origin
-		vec3 ro = vec3( 0.0, 1.0, 4.0 );
+		vec3 ro = uCameraPos;
 	
 		//ray direction
 		//normalize -> length 1
@@ -265,6 +267,9 @@ body {
         var uAmbientColLoc = gl.getUniformLocation(shaderProgram, "uAmbientCol");
         gl.uniform3f(uAmbientColLoc, guiElems.ambientCol[0] / 255, guiElems.ambientCol[1] / 255, guiElems.ambientCol[2] / 255, guiElems.ambientCol[3] / 255);
         
+        var uCameraPosLoc = gl.getUniformLocation(shaderProgram, "uCameraPos");
+        gl.uniform3f(uCameraPosLoc, guiElems.cameraPosX, guiElems.cameraPosY, guiElems.cameraPosZ);
+        
     }
     
     var squareVertexPositionBuffer;
@@ -312,17 +317,23 @@ body {
 		lightDirZ: 1.0,
 		lightCol: [ 200, 150, 100 ],
 		ambientCol: [ 100, 100, 200 ],
-		canvasSize: 0
+		canvasSize: 0,
+		cameraPosX: 0.0,
+		cameraPosY: 1.0,
+		cameraPosZ: 4.0
 	};
     function initGUI() {
 		var f1 = gui.addFolder('Light Options');
 		var f2 = gui.addFolder('Render Options');
     	var controllers = [
-			f1.add( guiElems, 'lightDirX', -1.0, 1.0 ),
-			f1.add( guiElems, 'lightDirY', -1.0, 1.0 ),
-			f1.add( guiElems, 'lightDirZ', -1.0, 1.0 ),
-			f1.addColor( guiElems, 'lightCol' ),
-			f1.addColor( guiElems, 'ambientCol' ),
+			f1.add( guiElems, 'lightDirX', -1.0, 1.0 ).name('Light X'),
+			f1.add( guiElems, 'lightDirY', -1.0, 1.0 ).name('Light Y'),
+			f1.add( guiElems, 'lightDirZ', -1.0, 1.0 ).name('Light Z'),
+			f1.addColor( guiElems, 'lightCol' ).name('Diffuse Colour'),
+			f1.addColor( guiElems, 'ambientCol' ).name('Ambient Colour'),
+			f1.add( guiElems, 'cameraPosX', -3.0, 3.0).name('Camera X'),
+			f1.add( guiElems, 'cameraPosY', 0.1, 3.0).name('Camera Y'),
+			f1.add( guiElems, 'cameraPosZ', 0.0, 10.0).name('Camera Z')
 		];
 		
 		for (var i = 0; i < controllers.length; i++) {
@@ -336,7 +347,7 @@ body {
 			medium: 1,
 			large: 2,
 			fullscreen: 3
-		} );
+		} ).name('Canvas Size');
 		sizeController.onFinishChange( function() {
 			if( guiElems.canvasSize == 0 ) {
 				resizeCanvas( 400, 400 );
@@ -354,6 +365,7 @@ body {
 		} );
 		
 		f1.open();
+		f2.open();
     }
     
     /*
