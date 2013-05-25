@@ -81,25 +81,58 @@ body {
 	vec3 nPlane( in vec3 pos ){
 		return vec3( 0.0, 1.0, 0.0 );
 	}
+	
+	//@baldwin
+	float intersectbox( vec3 ro, vec3 rd, float size, out float t0, out float t1, out vec3 normal ){
+		// Calculate intersections with origin-centred axis-aligned cube with sides length size
+		// Returns positive value if there are intersections
+	    vec3 ir = 1.0/rd;
+	    vec3 tb = ir * (vec3(-size*.5)-ro);
+	    vec3 tt = ir * (vec3(size*.5)-ro);
+	    vec3 tn = min(tt, tb);
+	    vec3 tx = max(tt, tb);
+	    vec2 t = max(tn.xx, tn.yz);
+	    t0 = max(t.x, t.y);
+	    t = min(tx.xx, tx.yz);
+	    t1 = min(t.x, t.y);
+		float d = (t1-t0);
+		vec3 i = ro + t0*rd;
+		normal = step(size*.499,abs(i))*sign(i);
+		if (t0<-0.01) d = t0;
+		return d;
+	}
 
 
 	//SPHERE DATA
-	vec4 sphereOne = vec4( 0.0, 1.0, 0.0, 1.0 );
+	vec4 sphereOne = vec4( -2.0, 1.0, 0.0, 1.0 );
+	vec3 boxPos = vec3( 2.0, 1.0, 0.0 );
 
-	float intersect( in vec3 ro, in vec3 rd, out float resT ) {
+	float intersect( in vec3 ro, in vec3 rd, out float t, out vec3 normal ) {
 	
-		resT = 1000.0;
+		t = 1000.0;
 		float id = -1.0;
 		float tSphere = intersectSphere( ro, rd, sphereOne);
 		float tPlane = intersectPlane( ro, rd );
 	
+		float tb0=0.0;
+		float tb1=0.0;
+		vec3 boxnormal;
+		float dbox = intersectbox(ro-boxPos, rd, 1.5, tb0, tb1, boxnormal );
+	
 		if( tSphere > 0.0 ){
 			id = 1.0;
-			resT = tSphere;	
+			t = tSphere;
+			normal = nSphere( ro + t*rd, sphereOne );
 		}
-		if( tPlane > 0.0 && tPlane < resT ){
+		if( tPlane > 0.0 && tPlane < t ){
 			id = 2.0;
-			resT = tPlane;	
+			t = tPlane;
+			normal = nPlane( ro + t*rd );
+		}
+		if( dbox > 0.0 ){
+			id = 3.0;
+			t = tb0;
+			normal = boxnormal;
 		}
 	
 		return id;
@@ -133,26 +166,29 @@ body {
 		vec3 rd = normalize( vec3( -1.0 + 2.0 * uv, -1.0 ) );
 	
 		float t;
-		float id = intersect( ro, rd, t ); //check intersections
+		vec3 normal;
+		float id = intersect( ro, rd, t, normal ); //check intersections
 	
 		//need lights, so need normals
 		//black for empty
 		vec3 col = vec3( 0.0 );
 	
-		if( id > 0.5 && id < 1.5 ) {
+		if( id == 1.0 ) {
 			//if intersected with sphere...
 			vec3 position = ro + t * rd;
-			vec3 normal = nSphere( position, sphereOne );
 			float dif = clamp( dot( normal, light ), 0.0, 1.0 ); //diffuse lighting
 			float ao = 0.5 + 0.5*normal.y; 
 			col = uLightCol * dif * ao + uAmbientCol * ao;
-		} else if( id > 1.5 ){
+		} else if( id == 2.0 ){
 			//if intersected with plane...
 			vec3 position = ro + t*rd;
-			vec3 normal = nPlane( position );
 			float dif = clamp( dot(normal, light), 0.0, 1.0 );
 			float amb = smoothstep( 0.0, 2.0 * sphereOne.w, length( position.xz - sphereOne.xz ) );
 			col = vec3( amb*0.9 );
+		} else if( id == 3.0 ){
+			float dif = clamp( dot( normal, light ), 0.0, 1.0 ); //diffuse lighting
+			float ao = 0.5 + 0.5*normal.y; 
+			col = uLightCol * dif * ao + uAmbientCol * ao;
 		}
 	
 		col = sqrt( col ); //hrmmmmmm
