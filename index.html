@@ -50,151 +50,178 @@ body {
 	uniform vec3 uCameraPos;
 	uniform vec3 uCameraDir;
 
-	//sphere at origin |xyz| = r
-	//so |xyz|^2 = r^2
-	///////
-	//sph is sphere x, y, z; w is radius
-	float intersectSphere( in vec3 ro, in vec3 rd, in vec4 sph ) {
-		//at origin 0,0,0
-		vec3 coord = ro - sph.xyz;
-		float b = 2.0 * dot( coord, rd );
-		float c = dot( coord, coord ) - sph.w*sph.w;
-		float h = b*b - 4.0*c;
-		if( h < 0.0 ){
-			return -1.0;
-		}
-		float t = ( -b - sqrt( h )) / 2.0;
-		return t;
-	}
+	const vec3 up = vec3(0.,1.,0.);
 
-	//calcuate sphere normals
+//height = floor plane y-coord
+//ro ray origin
+//rd ray direction
+//height... height!
+//t0 point on ray
+float intersectfloor(vec3 ro, vec3 rd, float height, out float t0)
+{	
+	if (rd.y==0.0) {
+		t0 = 100000.0;
+		return 0.0;
+	}
+	
+	t0 = -(ro.y - height)/rd.y;
+	t0 = min(100000.0,t0);
+	return t0;
+}
+
+// @baldwin
+// see http://www.cs.unc.edu/~rademach/xroads-RT/RTarticle.html
+// axis-aligned; length of side = size; slab implementation (t0 near, t1 far)
+// returns positive value if there are intersections
+float intersectbox( in vec3 ro, in vec3 rd, float size, out float t0, out float t1, out vec3 normal)
+{
+    vec3 ir = 1.0/rd; //inverse ray
+    vec3 tb = ir * (vec3(-size*.5)-ro);
+    vec3 tt = ir * (vec3(size*.5)-ro);
+    vec3 tn = min(tt, tb);
+    vec3 tx = max(tt, tb);
+    vec2 t = max(tn.xx, tn.yz);
+    t0 = max(t.x, t.y);
+    t = min(tx.xx, tx.yz);
+    t1 = min(t.x, t.y);
+	float d = (t1-t0);
+	vec3 i = ro + t0*rd;
+	normal = step(size*.499,abs(i))*sign(i);
+	if (t0<-0.01) d = t0;
+	return d;
+}
+
+//calcuate sphere normals
 	vec3 nSphere( in vec3 pos, in vec4 sph ){
 		return (pos - sph.xyz)/sph.w;
 	}
 
-	//plane is easy (y=0)!
-	float intersectPlane( in vec3 ro, in vec3 rd ){
-		return -ro.y / rd.y;
+float intersectsphere( in vec3 sphPos, in vec3 ro, in vec3 rd, float rad, out float t, out vec3 normal ){
+	vec3 coord = ro - sphPos.xyz;
+	float b = 2.0 * dot( coord, rd );
+	float c = dot( coord, coord ) - rad * rad;
+	float h = b*b - 4.0*c;
+	if( h < 0.0 ){
+		return -1.0;
 	}
+	t = ( -b - sqrt( h )) / 2.0;
+	
+	vec3 pos = ro + t * rd;
+	vec4 sph = vec4( sphPos.xyz, rad );
+	normal = nSphere( pos, sph );
+	
+	return t;
+}
 
-	//plane normals; easy again!
-	vec3 nPlane( in vec3 pos ){
-		return vec3( 0.0, 1.0, 0.0 );
+float intersect(in vec3 boxPos, in vec3 sphPos, in vec3 ro, in vec3 rd, out vec3 intersection, out vec3 normal, out int mode, out float t) 
+{
+	//check box
+	float tb0 = 0.0; //nearpoint
+	float tb1 = 0.0; //farpoint
+	vec3 boxnormal;
+	float dbox = intersectbox( ro-boxPos, rd, 1., tb0, tb1, boxnormal );
+	
+	//check sphere
+	float ts = 0.0;
+	vec3 spherenormal;
+	float ds = intersectsphere( sphPos, ro, rd, 1.0, ts, spherenormal);
+	
+	//check floor
+	float tf = 0.0; //floor point
+	float dfloor = intersectfloor(ro,rd,0.,tf);
+	t = tf;
+	float d = dfloor;
+	mode = 0; // no intersection
+	if ( d >= 0.0 ) {
+		normal = vec3( 0.0, 1.0, 0.0 );
+		mode = 2; // floor
 	}
-	
-	//@baldwin
-	float intersectbox( vec3 ro, vec3 rd, float size, out float t0, out float t1, out vec3 normal ){
-		// Calculate intersections with origin-centred axis-aligned cube with sides length size
-		// Returns positive value if there are intersections
-	    vec3 ir = 1.0/rd;
-	    vec3 tb = ir * (vec3(-size*.5)-ro);
-	    vec3 tt = ir * (vec3(size*.5)-ro);
-	    vec3 tn = min(tt, tb);
-	    vec3 tx = max(tt, tb);
-	    vec2 t = max(tn.xx, tn.yz);
-	    t0 = max(t.x, t.y);
-	    t = min(tx.xx, tx.yz);
-	    t1 = min(t.x, t.y);
-		float d = (t1-t0);
-		vec3 i = ro + t0*rd;
-		normal = step(size*.499,abs(i))*sign(i);
-		if (t0<-0.01) d = t0;
-		return d;
+	if ( dbox >= 0.0 ) {
+		t = tb0;
+		d = dbox;
+		normal = boxnormal;
+		mode = 1; // box
+		if ( t<0.0 ) {
+			d =- 0.1;
+		}
 	}
-
-
-	//SPHERE DATA
-	vec4 sphereOne = vec4( -2.0, 1.0, 0.0, 1.0 );
-	vec3 boxPos = vec3( 2.0, 1.0, 0.0 );
-
-	float intersect( in vec3 ro, in vec3 rd, out float t, out vec3 normal ) {
-	
-		t = 1000.0;
-		float id = -1.0;
-		float tSphere = intersectSphere( ro, rd, sphereOne);
-		float tPlane = intersectPlane( ro, rd );
-	
-		float tb0=0.0;
-		float tb1=0.0;
-		vec3 boxnormal;
-		float dbox = intersectbox(ro-boxPos, rd, 1.5, tb0, tb1, boxnormal );
-	
-		if( tSphere > 0.0 ){
-			id = 1.0;
-			t = tSphere;
-			normal = nSphere( ro + t*rd, sphereOne );
-		}
-		if( tPlane > 0.0 && tPlane < t ){
-			id = 2.0;
-			t = tPlane;
-			normal = nPlane( ro + t*rd );
-		}
-		if( dbox > 0.0 ){
-			id = 3.0;
-			t = tb0;
-			normal = boxnormal;
-		}
-	
-		return id;
+	if ( ds >= 0.0 ) {
+		t = ts;
+		d = ds;
+		normal = spherenormal;
+		mode = 3; //sphere
 	}
-
-	void main( void ) {
-
-		//vec3 light = normalize( vec3( 0.7123 ) );
-		vec3 light = normalize( uLightDir );
-
-		/*//sphere animation
-		sphereOne.x = cos( time );
-		sphereOne.z = sin( time );
-		sphereOne.y = 1.5 + 0.25 * cos( time );*/
+	intersection = ro + t * rd;
+	return d;
+}
+				
+void main(void)
+{
+	vec3 light = uLightDir; //light pos
+	float radius = uCameraPos.z; //camera rad from origin
+	vec3 boxPos = vec3( -2.0, 1.0, 0.0 ); //cube position
+	vec3 sphPos = vec3( 2.0, 1.0, 0.0 ); //sphere position
+	//sin(x), cos(z) = disc orbit
+	vec3 eye = vec3( radius*sin(uCameraPos.x), uCameraPos.y, radius*cos(uCameraPos.x) ); //camera
+	vec3 screen = vec3( ( radius-1.0 )*sin(uCameraPos.x), uCameraPos.y, ( radius-1.0 )*cos(uCameraPos.x) );
+	vec2 screenSize = vec2( uResolution.x / uResolution.y, 1.0);
+	vec2 uv = gl_FragCoord.xy / uResolution.xy;
+	vec2 offset = screenSize * ( uv - 0.5 );
+	vec3 right = cross( up, normalize( screen - eye ) );
+	vec3 ro = screen + offset.y * up + offset.x * right; //ray origin
+	vec3 rd = normalize( ro - eye ); //ray direction
+	vec3 i = vec3( 0.0 ); //intersection
+	vec3 n = vec3( 0.0 ); //normal
+	int m,m2; //mode (m2 for shadowcast)
+	float d,lightd,ra,global,direct,shade,t,tlight; //ra reflectivity
+	vec3 lrd,i2,n2; //lightray direction, shadow intersection, shadow normal (unused)
+	i2 = vec3( 0.0 ); //initialise to remove artefacts
+	vec3 c = vec3( 0.0 ); //colourisation
+	vec3 ca = vec3( 0.0 ); //colourisation
+	float lra = 1.0; //attenuation
 	
-		//pixel coords from 0 to 1
-		vec2 uv;
-		if( uResolution.x > uResolution.y ) {
-			float offset = (uResolution.x - uResolution.y) / (2.0 * uResolution.x);
-			uv = vec2(gl_FragCoord.x / uResolution.x, gl_FragCoord.y / uResolution.x + offset);
-		} else {
-			float offset = (uResolution.y - uResolution.x) / (2.0 * uResolution.y);
-			uv = vec2(gl_FragCoord.x / uResolution.y + offset, gl_FragCoord.y / uResolution.y);
+	for ( int reflections = 0; reflections < 10; reflections++ ) { 
+		//get intersection
+		d = intersect( boxPos, sphPos, ro, rd, i, n, m, t );
+		//shadows
+		lrd = normalize( light - i ); //light direction relative to intersection
+		tlight = length( light - i ); 
+		lightd = smoothstep( 0.5 * length( i - i2 ), 0.0, intersect( boxPos, sphPos, i, lrd, i2, n2, m2, t ) );
+		if ( t > tlight ){
+			lightd = 1.0;
 		}
-	
-		//ray origin
-		vec3 ro = uCameraPos;
-	
-		//ray direction
-		//normalize -> length 1
-		vec3 rd = normalize( vec3( -1.0 + 2.0 * uv, -1.0 ) );
-	
-		float t;
-		vec3 normal;
-		float id = intersect( ro, rd, t, normal ); //check intersections
-	
-		//need lights, so need normals
-		//black for empty
-		vec3 col = vec3( 0.0 );
-	
-		if( id == 1.0 ) {
-			//if intersected with sphere...
-			vec3 position = ro + t * rd;
-			float dif = clamp( dot( normal, light ), 0.0, 1.0 ); //diffuse lighting
-			float ao = 0.5 + 0.5*normal.y; 
-			col = uLightCol * dif * ao + uAmbientCol * ao;
-		} else if( id == 2.0 ){
-			//if intersected with plane...
-			vec3 position = ro + t*rd;
-			float dif = clamp( dot(normal, light), 0.0, 1.0 );
-			float amb = smoothstep( 0.0, 2.0 * sphereOne.w, length( position.xz - sphereOne.xz ) );
-			col = vec3( amb*0.9 );
-		} else if( id == 3.0 ){
-			float dif = clamp( dot( normal, light ), 0.0, 1.0 ); //diffuse lighting
-			float ao = 0.5 + 0.5*normal.y; 
-			col = uLightCol * dif * ao + uAmbientCol * ao;
+		//colours
+		global = 0.3; //affects cube strongly
+		direct = max( ( 10.0 / length( lrd ) ) * dot( lrd, n ) , 0.0 );
+		shade = global + direct * lightd;
+		if ( m == 0 ) { //"SKY"
+			ra = 0.0;
+			c = vec3( 0.9, 2.0, 2.5 ); 
 		}
-	
-		col = sqrt( col ); //hrmmmmmm
-		gl_FragColor = vec4( col, 1.0 );
-
+		if ( m == 1 ) { //CUBE
+			ra = 0.1;
+			c = shade * uAmbientCol; 
+		}
+		if ( m == 2 ) { //FLOOR
+			ra = 0.3;
+			vec2 mxz = abs( fract( i.xz ) * 2.0 - 1.0 );
+			float fade = clamp( 1.0 - length( i.xz ) * 0.05, 0.0, 1.0 );
+			float fc = mix( 0.5, smoothstep( 1.0, 0.9, mxz.x + mxz.y ), fade );
+			c = vec3(fc*shade);
+		}
+		if ( m == 3 ) { //SPHERE
+			ra = 0.2;
+			c = shade * uAmbientCol;
+		}
+		// attenuate reflections for next iteration
+		ca += lra * c;
+		lra *= ra;
+		rd = reflect( rd, n );
+		ro = i + 0.01 * rd;
 	}
+	gl_FragColor = vec4( ca / (1.0+ca), 1.0 );
+	//gl_FragColor = vec4( sqrt( ca ), 1.0 );
+}
     
 	</script>
 
@@ -306,6 +333,9 @@ body {
         var uCameraPosLoc = gl.getUniformLocation(shaderProgram, "uCameraPos");
         gl.uniform3f(uCameraPosLoc, guiElems.cameraPosX, guiElems.cameraPosY, guiElems.cameraPosZ);
         
+        var uTimeLoc = gl.getUniformLocation(shaderProgram, "uTime");
+        gl.uniform1f(uTimeLoc, Date.now() );
+        
     }
     
     var squareVertexPositionBuffer;
@@ -348,28 +378,28 @@ body {
     
     var gui = new dat.GUI();
     var guiElems = {
-		lightDirX: 1.0,
-		lightDirY: 1.0,
-		lightDirZ: 1.0,
+		lightDirX: 5.0,
+		lightDirY: 7.0,
+		lightDirZ: 2.0,
 		lightCol: [ 200, 150, 100 ],
 		ambientCol: [ 100, 100, 200 ],
 		canvasSize: 0,
 		cameraPosX: 0.0,
 		cameraPosY: 1.0,
-		cameraPosZ: 4.0
+		cameraPosZ: 6.0
 	};
     function initGUI() {
 		var f1 = gui.addFolder('Light Options');
 		var f2 = gui.addFolder('Render Options');
     	var controllers = [
-			f1.add( guiElems, 'lightDirX', -1.0, 1.0 ).name('Light X'),
-			f1.add( guiElems, 'lightDirY', -1.0, 1.0 ).name('Light Y'),
-			f1.add( guiElems, 'lightDirZ', -1.0, 1.0 ).name('Light Z'),
+			f1.add( guiElems, 'lightDirX', -10.0, 10.0 ).name('Light X'),
+			f1.add( guiElems, 'lightDirY', 0.0, 10.0 ).name('Light Y'),
+			f1.add( guiElems, 'lightDirZ', -10.0, 10.0 ).name('Light Z'),
 			f1.addColor( guiElems, 'lightCol' ).name('Diffuse Colour'),
 			f1.addColor( guiElems, 'ambientCol' ).name('Ambient Colour'),
-			f1.add( guiElems, 'cameraPosX', -3.0, 3.0).name('Camera X'),
+			f1.add( guiElems, 'cameraPosX', -2.0, 2.0).name('Camera X'),
 			f1.add( guiElems, 'cameraPosY', 0.1, 3.0).name('Camera Y'),
-			f1.add( guiElems, 'cameraPosZ', 0.0, 10.0).name('Camera Z')
+			f1.add( guiElems, 'cameraPosZ', 1.0, 10.0).name('Camera Z')
 		];
 		
 		for (var i = 0; i < controllers.length; i++) {
