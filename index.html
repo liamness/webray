@@ -45,8 +45,8 @@ body {
 
 	uniform vec2 uResolution;
 	uniform vec3 uLightDir;
-	uniform vec3 uLightCol;
-	uniform vec3 uAmbientCol;
+	uniform vec3 uBoxCol;
+	uniform vec3 uSphCol;
 	uniform vec3 uCameraPos;
 	uniform vec3 uCameraDir;
 
@@ -119,7 +119,8 @@ float intersect(in vec3 boxPos, in vec3 sphPos, in vec3 ro, in vec3 rd, out vec3
 	float tb0 = 0.0; //nearpoint
 	float tb1 = 0.0; //farpoint
 	vec3 boxnormal;
-	float dbox = intersectbox( ro-boxPos, rd, 1., tb0, tb1, boxnormal );
+	float dbox = intersectbox( ro-boxPos, rd, 1.0, tb0, tb1, boxnormal );
+	//float dbox = intersectsphere( boxPos, ro, rd, 1.0, tb0, boxnormal ); //uncomment to make sphere
 	
 	//check sphere
 	float ts = 0.0;
@@ -196,11 +197,11 @@ void main(void)
 		shade = global + direct * lightd;
 		if ( m == 0 ) { //"SKY"
 			ra = 0.0;
-			c = vec3( 0.9, 2.0, 2.5 ); 
+			c = vec3( 0.2, 0.5, 0.9 ); 
 		}
 		if ( m == 1 ) { //CUBE
 			ra = 0.1;
-			c = shade * uAmbientCol; 
+			c = shade * uBoxCol; 
 		}
 		if ( m == 2 ) { //FLOOR
 			ra = 0.3;
@@ -211,7 +212,7 @@ void main(void)
 		}
 		if ( m == 3 ) { //SPHERE
 			ra = 0.2;
-			c = shade * uAmbientCol;
+			c = shade * uSphCol;
 		}
 		// attenuate reflections for next iteration
 		ca += lra * c;
@@ -324,17 +325,14 @@ void main(void)
         var uLightDirLoc = gl.getUniformLocation(shaderProgram, "uLightDir");
         gl.uniform3f(uLightDirLoc, guiElems.lightDirX, guiElems.lightDirY, guiElems.lightDirZ);
         
-        var uLightColLoc = gl.getUniformLocation(shaderProgram, "uLightCol");
-        gl.uniform3f(uLightColLoc, guiElems.lightCol[0] / 255, guiElems.lightCol[1] / 255, guiElems.lightCol[2] / 255, guiElems.lightCol[3] / 255);
+        var uBoxColLoc = gl.getUniformLocation(shaderProgram, "uBoxCol");
+        gl.uniform3f(uBoxColLoc, guiElems.boxCol[0] / 255, guiElems.boxCol[1] / 255, guiElems.boxCol[2] / 255, guiElems.boxCol[3] / 255);
         
-        var uAmbientColLoc = gl.getUniformLocation(shaderProgram, "uAmbientCol");
-        gl.uniform3f(uAmbientColLoc, guiElems.ambientCol[0] / 255, guiElems.ambientCol[1] / 255, guiElems.ambientCol[2] / 255, guiElems.ambientCol[3] / 255);
+        var uSphColLoc = gl.getUniformLocation(shaderProgram, "uSphCol");
+        gl.uniform3f(uSphColLoc, guiElems.sphCol[0] / 255, guiElems.sphCol[1] / 255, guiElems.sphCol[2] / 255, guiElems.sphCol[3] / 255);
         
         var uCameraPosLoc = gl.getUniformLocation(shaderProgram, "uCameraPos");
         gl.uniform3f(uCameraPosLoc, guiElems.cameraPosX, guiElems.cameraPosY, guiElems.cameraPosZ);
-        
-        var uTimeLoc = gl.getUniformLocation(shaderProgram, "uTime");
-        gl.uniform1f(uTimeLoc, Date.now() );
         
     }
     
@@ -381,25 +379,25 @@ void main(void)
 		lightDirX: 5.0,
 		lightDirY: 7.0,
 		lightDirZ: 2.0,
-		lightCol: [ 200, 150, 100 ],
-		ambientCol: [ 100, 100, 200 ],
+		boxCol: [ 200, 150, 100 ],
+		sphCol: [ 100, 100, 200 ],
 		canvasSize: 0,
 		cameraPosX: 0.0,
 		cameraPosY: 1.0,
 		cameraPosZ: 6.0
 	};
     function initGUI() {
-		var f1 = gui.addFolder('Light Options');
-		var f2 = gui.addFolder('Render Options');
+		var f1 = gui.addFolder('Light');
+		var f2 = gui.addFolder('Render');
     	var controllers = [
 			f1.add( guiElems, 'lightDirX', -10.0, 10.0 ).name('Light X'),
-			f1.add( guiElems, 'lightDirY', 0.0, 10.0 ).name('Light Y'),
+			f1.add( guiElems, 'lightDirY', 0.1, 10.0 ).name('Light Y'),
 			f1.add( guiElems, 'lightDirZ', -10.0, 10.0 ).name('Light Z'),
-			f1.addColor( guiElems, 'lightCol' ).name('Diffuse Colour'),
-			f1.addColor( guiElems, 'ambientCol' ).name('Ambient Colour'),
-			f1.add( guiElems, 'cameraPosX', -2.0, 2.0).name('Camera X'),
-			f1.add( guiElems, 'cameraPosY', 0.1, 3.0).name('Camera Y'),
-			f1.add( guiElems, 'cameraPosZ', 1.0, 10.0).name('Camera Z')
+			f1.addColor( guiElems, 'boxCol' ).name('Cube Colour'),
+			f1.addColor( guiElems, 'sphCol' ).name('Sphere Colour'),
+			f1.add( guiElems, 'cameraPosX', -2.0, 2.0).name('Camera Position'),
+			f1.add( guiElems, 'cameraPosY', 0.1, 3.0).name('Camera Height'),
+			f1.add( guiElems, 'cameraPosZ', 1.0, 10.0).name('Camera Zoom')
 		];
 		
 		for (var i = 0; i < controllers.length; i++) {
