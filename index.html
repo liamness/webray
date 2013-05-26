@@ -118,10 +118,13 @@ a {
 
 	uniform vec2 uResolution;
 	uniform vec3 uLightDir;
-	uniform vec3 uBoxCol;
-	uniform vec3 uSphCol;
+	uniform vec3 uMatteCol;
+	uniform vec3 uShinyCol;
 	uniform vec3 uCameraPos;
 	uniform vec3 uCameraDir;
+	uniform int uObjectOneMaterial;
+	uniform int uObjectTwoMaterial;
+	uniform int uObjectThreeMaterial;
 
 	const vec3 up = vec3(0.,1.,0.);
 
@@ -219,7 +222,7 @@ float intersect(in vec3 boxPos, in vec3 sphPos, in vec3 sphPos2, in vec3 ro, in 
 		t = tb0;
 		d = dbox;
 		normal = boxnormal;
-		mode = 1; // box
+		mode = uObjectOneMaterial; // box
 		if ( t<0.0 ) {
 			d =- 0.1;
 		}
@@ -228,13 +231,13 @@ float intersect(in vec3 boxPos, in vec3 sphPos, in vec3 sphPos2, in vec3 ro, in 
 		t = ts;
 		d = ds;
 		normal = spherenormal;
-		mode = 3; //sphere
+		mode = uObjectTwoMaterial; //sphere
 	}
 	if ( ds2 >= 0.0 ) {
 		t = ts2;
 		d = ds2;
 		normal = spherenormal2;
-		mode = 4; //refractive sphere
+		mode = uObjectThreeMaterial; //refractive sphere
 	}
 	intersection = ro + t * rd;
 	return d;
@@ -273,7 +276,7 @@ void main(void)
 		lrd = normalize( light - i ); //light direction relative to intersection
 		tlight = length( light - i ); 
 		lightd = smoothstep( 0.5 * length( i - i2 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd, i2, n2, m2, t ) );
-		if( m2 == 4 ){ //attenuate shadow for refractive sphere
+		if( m2 == 4 ){ //attenuate shadow for refractive object
 			lightd *= 10.0;
 		}
 		if ( t > tlight ){
@@ -287,9 +290,9 @@ void main(void)
 			ra = 0.0;
 			c = vec3( 0.2, 0.5, 0.9 ); 
 		}
-		if ( m == 1 ) { //CUBE
-			ra = 0.1;
-			c = shade * uBoxCol; 
+		if ( m == 1 ) { //MATTE ISH
+			ra = 0.0;
+			c = shade * uMatteCol; 
 		}
 		if ( m == 2 ) { //FLOOR
 			ra = 0.3;
@@ -298,11 +301,11 @@ void main(void)
 			float fc = mix( 0.5, smoothstep( 1.0, 0.9, mxz.x + mxz.y ), fade );
 			c = vec3(fc*shade);
 		}
-		if ( m == 3 ) { //SPHERE
+		if ( m == 3 ) { //SHINY
 			ra = 0.2;
-			c = shade * uSphCol;
+			c = shade * uShinyCol;
 		}
-		if ( m == 4 ) { //REFRACTIVE SPHERE
+		if ( m == 4 ) { //REFRACTIVE
 			ra = 1.0;
 			c = shade * vec3( 0.0, 0.0, 0.0 );
 		}
@@ -418,17 +421,33 @@ void main(void)
     
     function updateUniforms() {
         
+        //light position
         var uLightDirLoc = gl.getUniformLocation(shaderProgram, "uLightDir");
         gl.uniform3f(uLightDirLoc, guiElems.lightDirX, guiElems.lightDirY, guiElems.lightDirZ);
         
-        var uBoxColLoc = gl.getUniformLocation(shaderProgram, "uBoxCol");
-        gl.uniform3f(uBoxColLoc, guiElems.boxCol[0] / 255, guiElems.boxCol[1] / 255, guiElems.boxCol[2] / 255, guiElems.boxCol[3] / 255);
+        //middle obj colour
+        var uMatteColLoc = gl.getUniformLocation(shaderProgram, "uMatteCol");
+        gl.uniform3f(uMatteColLoc, guiElems.matteCol[0] / 255, guiElems.matteCol[1] / 255, guiElems.matteCol[2] / 255, guiElems.matteCol[3] / 255);
         
-        var uSphColLoc = gl.getUniformLocation(shaderProgram, "uSphCol");
-        gl.uniform3f(uSphColLoc, guiElems.sphCol[0] / 255, guiElems.sphCol[1] / 255, guiElems.sphCol[2] / 255, guiElems.sphCol[3] / 255);
+        //left obj colour
+        var uShinyColLoc = gl.getUniformLocation(shaderProgram, "uShinyCol");
+        gl.uniform3f(uShinyColLoc, guiElems.shinyCol[0] / 255, guiElems.shinyCol[1] / 255, guiElems.shinyCol[2] / 255, guiElems.shinyCol[3] / 255);
         
+        //camera pos
         var uCameraPosLoc = gl.getUniformLocation(shaderProgram, "uCameraPos");
         gl.uniform3f(uCameraPosLoc, guiElems.cameraPosX, guiElems.cameraPosY, guiElems.cameraPosZ);
+        
+        //o1 mat
+        var uObjOneMatLoc = gl.getUniformLocation(shaderProgram, "uObjectOneMaterial");
+        gl.uniform1i(uObjOneMatLoc, guiElems.objectOneMat);
+        
+        //o2 mat
+        var uObjTwoMatLoc = gl.getUniformLocation(shaderProgram, "uObjectTwoMaterial");
+        gl.uniform1i(uObjTwoMatLoc, guiElems.objectTwoMat);
+        
+        //o3 mat
+        var uObjThreeMatLoc = gl.getUniformLocation(shaderProgram, "uObjectThreeMaterial");
+        gl.uniform1i(uObjThreeMatLoc, guiElems.objectThreeMat);
         
     }
     
@@ -478,12 +497,15 @@ void main(void)
 		cameraPosX: 0.0,
 		cameraPosY: 2.25,
 		cameraPosZ: 6.0,
-		boxCol: [ 200, 150, 100 ],
-		sphCol: [ 100, 100, 200 ],
+		matteCol: [ 200, 150, 100 ],
+		shinyCol: [ 100, 100, 200 ],
 		canvasSize: 0,
 		screenshot: function() {
 			screenshot();
-		}
+		},
+		objectOneMat: 1,
+		objectTwoMat: 3,
+		objectThreeMat: 4
 	};
     function initGUI() {
 		var f1 = gui.addFolder('Light Options');
@@ -497,8 +519,23 @@ void main(void)
 			f2.add( guiElems, 'cameraPosX', -2.0, 2.0).name('Camera Position'),
 			f2.add( guiElems, 'cameraPosY', 0.1, 3.0).name('Camera Height'),
 			f2.add( guiElems, 'cameraPosZ', 1.0, 10.0).name('Camera Zoom'),
-			f3.addColor( guiElems, 'boxCol' ).name('Cube Colour'),
-			f3.addColor( guiElems, 'sphCol' ).name('Sphere Colour')
+			f3.addColor( guiElems, 'matteCol' ).name('Matte Colour'),
+			f3.addColor( guiElems, 'shinyCol' ).name('Shiny Colour'),
+			f3.add( guiElems, 'objectOneMat', {
+				matte: 1,
+				shiny: 3, 
+				glass: 4
+			} ).name('Object One Material'),
+			f3.add( guiElems, 'objectTwoMat', {
+				matte: 1,
+				shiny: 3, 
+				glass: 4
+			} ).name('Object Two Material'),
+			f3.add( guiElems, 'objectThreeMat', {
+				matte: 1,
+				shiny: 3, 
+				glass: 4
+			} ).name('Object Three Material')
 		];
 		
 		for (var i = 0; i < controllers.length; i++) {
