@@ -200,6 +200,9 @@ void main(void)
 		lrd = normalize( light - i ); //light direction relative to intersection
 		tlight = length( light - i ); 
 		lightd = smoothstep( 0.5 * length( i - i2 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd, i2, n2, m2, t ) );
+		if( m2 == 4 ){ //attenuate shadow for refractive sphere
+			lightd = 0.5;
+		}
 		if ( t > tlight ){
 			lightd = 1.0;
 		}
