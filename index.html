@@ -19,6 +19,11 @@ body {
 	margin: 0;
 }
 
+a {
+	text-decoration: none;
+	color: #06f;
+}
+
 #demoWrap {
 	width: 100%;
 	height: 100%;
@@ -29,6 +34,68 @@ body {
 #canvas {
 	position: relative;
 }
+
+#popupWrap {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+	}
+	
+#popup {
+	position: relative;
+	top: 0;
+	left: 0;
+	width: 500px;
+	padding: 10px 20px;
+	margin: 0 auto;
+	text-align: center;
+	background-color: #FFF;
+	border: 5px solid #000;
+	border-radius: 15px;
+}
+
+.text_vvlarge {
+	font-family: calibri, arial, sans-serif;
+	font-size: 30px;
+	line-height: 1.5em;
+}
+
+.text_vlarge {
+	font-family: calibri, arial, sans-serif;
+	font-size: 24px;
+	line-height: 1.5em;
+}
+
+.text_large {
+	font-family: calibri, arial, sans-serif;
+	font-size: 18px;
+	line-height: 1.5em;
+}
+
+.text_normal {
+	font-family: calibri, arial, sans-serif;
+	font-size: 15px;
+	line-height: 1.5em;
+}
+
+.text_small {
+	font-family: calibri, arial, sans-serif;
+	font-size: 13px;
+	line-height: 1.5em;
+}
+
+.text_vsmall {
+	font-family: calibri, arial, sans-serif;
+	font-size: 11px;
+	line-height: 1.5em;
+}
+
+.text_vvsmall {
+	font-family: calibri, arial, sans-serif;
+	font-size: 9px;
+	line-height: 1.5em;
+}
 </style>
 </head>
 
@@ -36,6 +103,12 @@ body {
 	<div id="demoWrap">
 		<canvas id="canvas">If you're seeing this, it probably means your browser doesn't support WebGL, and so you can't see this lovely demo. :(</canvas>
     </div>
+    <div id="popupWrap">
+		<div id="popup">
+			<p class="text_vlarge">Some instructional stuff goes here.</p>
+			<p class="text_vlarge"><a onclick="removeDialog()">Click here to begin.</a></p>
+		</div>
+	</div>
     
     <script id="shader-fs" type="x-shader/x-fragment">
 	
@@ -407,7 +480,10 @@ void main(void)
 		canvasSize: 0,
 		cameraPosX: 0.0,
 		cameraPosY: 2.25,
-		cameraPosZ: 6.0
+		cameraPosZ: 6.0,
+		screenshot: function() {
+			screenshot();
+		}
 	};
     function initGUI() {
 		var f1 = gui.addFolder('Light');
@@ -439,17 +515,21 @@ void main(void)
 			if( guiElems.canvasSize == 0 ) {
 				resizeCanvas( 400, 400 );
 				resizeWindow();
+				draw();
 			} else if( guiElems.canvasSize == 1 ) {
 				resizeCanvas( 640, 480 );
 				resizeWindow();
+				draw();
 			} else if( guiElems.canvasSize == 2 ) {
 				resizeCanvas( 1080, 720 );
 				resizeWindow();
+				draw();
 			} else if( guiElems.canvasSize == 3 ) {
 				resizeWindow();
 				draw();
 			}
 		} );
+		f2.add( guiElems, 'screenshot' );
 		
 		f1.open();
 		f2.open();
@@ -467,6 +547,10 @@ void main(void)
     	} else {
     		$("#canvas").css( "top", ($(window).height() - $("#canvas").outerHeight()) / 2);
     	}
+    	
+    	if( $("#popup").is(":visible") ) {
+    		$("#popup").css( "top", (window.innerHeight - $("#popup").outerHeight()) / 2);
+    	}
     }
     
     function resizeCanvas( width, height ) {
@@ -478,6 +562,34 @@ void main(void)
         gl.uniform2f(uResolutionLoc, width, height);
     }
     
+    function printDialog( content, action, timeout ) {
+		var popup = $('#popup'); 
+		popup.html( content );
+	
+		if( action ) {
+			popup.attr( 'onclick', action );
+		}
+	
+		if( timeout ) {
+			setTimeout( removeDialog, timeout );
+		}
+		
+		popup.css( "top", (window.innerHeight - $("#popup").outerHeight()) / 2);
+		popup.fadeIn( 'fast' );
+	}
+
+	function removeDialog() {
+		var popup = $('#popup'); 
+		popup.removeAttr( 'onclick' );
+		popup.fadeOut( 'fast' );
+	}
+	
+	function screenshot() {
+    	var data = canvas.toDataURL("image/png");
+    	printDialog(
+			'<p class="text_vlarge">Click <a href="' + data + '" download="screenshot">here</a> to download the screenshot.</p>',
+		'removeDialog()', false );
+	}
     
     /*
     	update functions
