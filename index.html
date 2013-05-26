@@ -688,7 +688,9 @@ void main(void)
     		var diffX = ( new_x - old_x ) / 100;
     		guiElems.cameraPosX += diffX;
     		var diffY = ( new_y - old_y ) / 100;
-    		guiElems.cameraPosY += diffY;
+    		if( guiElems.cameraPosY > 0 && diffY < 0 || guiElems.cameraPosY < 3 && diffY > 0 ) {
+    			guiElems.cameraPosY += diffY;
+    		}
     		update();
     		
     	}
