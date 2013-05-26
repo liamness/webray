@@ -125,6 +125,7 @@ a {
 	uniform int uObjectOneMaterial;
 	uniform int uObjectTwoMaterial;
 	uniform int uObjectThreeMaterial;
+	uniform float uRefractiveIndex;
 
 	const vec3 up = vec3(0.,1.,0.);
 
@@ -325,7 +326,7 @@ void main(void)
 		if( m != 4 ){
 			rd = reflect( rd, n );
 		} else {
-			rd = refract( rd, n, 0.9 );
+			rd = refract( rd, n, uRefractiveIndex );
 		}
 		ro = i + 0.01 * rd;
 	}
@@ -464,6 +465,10 @@ void main(void)
         var uObjThreeMatLoc = gl.getUniformLocation(shaderProgram, "uObjectThreeMaterial");
         gl.uniform1i(uObjThreeMatLoc, guiElems.objectThreeMat);
         
+        //refractive idnex
+        var uRefIndexLoc = gl.getUniformLocation(shaderProgram, "uRefractiveIndex");
+        gl.uniform1f(uRefIndexLoc, guiElems.refractiveIndex);
+        
     }
     
     var squareVertexPositionBuffer;
@@ -540,7 +545,8 @@ void main(void)
 		},
 		objectOneMat: 1,
 		objectTwoMat: 3,
-		objectThreeMat: 4
+		objectThreeMat: 4,
+		refractiveIndex: 0.9
 		
 	};
 	
@@ -574,7 +580,8 @@ void main(void)
 				matte: 1,
 				shiny: 3, 
 				glass: 4
-			} ).name('Object Three Material')
+			} ).name('Object Three Material'),
+			f3.add( guiElems, 'refractiveIndex', 0.0, 1.0 ).name('Refractive Index')
 		];
 		
 		for (var i = 0; i < controllers.length; i++) {
