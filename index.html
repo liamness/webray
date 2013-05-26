@@ -105,7 +105,8 @@ a {
     </div>
     <div id="popupWrap">
 		<div id="popup">
-			<p class="text_vlarge">Say hi, some instructional stuff goes here.</p>
+			<p class="text_vlarge"><strong>Instructions:</strong></p>
+			<p class="text_large">To move the view, click and drag. You can zoom by scrolling in and out. A set of extended controls, allowing for the material properties to be adjusted and the generation of screenshots, can be found in the top right.</p>
 			<p class="text_vlarge"><a onclick="removeDialog()">Click here to begin.</a></p>
 		</div>
 	</div>
@@ -555,52 +556,48 @@ void main(void)
 		screenshot: function() {
 			screenshot();
 		},
+		refractiveIndex: 0.9,
 		objectOneMat: 1,
 		objectOneCol: [ 200, 150, 100 ],
 		objectTwoCol: [ 100, 100, 200 ],
 		objectThreeCol: [ 100, 100, 200 ],
 		objectTwoMat: 3,
-		objectThreeMat: 4,
-		refractiveIndex: 0.9
+		objectThreeMat: 4
 		
 	};
 	
     function initGUI() {
     
 		var f1 = gui.addFolder('Light Options');
-		var f2 = gui.addFolder('Camera Options');
-		var f3 = gui.addFolder('Object Options');
-		var f4 = gui.addFolder('Object 1 Options');
-		var f5 = gui.addFolder('Object 2 Options');
-		var f6 = gui.addFolder('Object 3 Options');
-		var f7 = gui.addFolder('Render Options');
+		var f2 = gui.addFolder('Object Options');
+		var f2_1 = f2.addFolder('Object 1 Options');
+		var f2_2 = f2.addFolder('Object 2 Options');
+		var f2_3 = f2.addFolder('Object 3 Options');
+		var f3 = gui.addFolder('Render Options');
 		
     	var controllers = [
 			f1.add( guiElems, 'lightDirX', -10.0, 10.0 ).name('Light X'),
 			f1.add( guiElems, 'lightDirY', 0.1, 10.0 ).name('Light Y'),
 			f1.add( guiElems, 'lightDirZ', -10.0, 10.0 ).name('Light Z'),
-			f2.add( guiElems, 'cameraPosX', -2.0, 2.0).name('Camera Position'),
-			f2.add( guiElems, 'cameraPosY', 0.1, 3.0).name('Camera Height'),
-			f2.add( guiElems, 'cameraPosZ', 1.0, 10.0).name('Camera Zoom'),
-			f4.add( guiElems, 'objectOneMat', {
+			f2.add( guiElems, 'refractiveIndex', 0.0, 1.0 ).name('Refractive Index'),
+			f2_1.add( guiElems, 'objectOneMat', {
 				matte: 1,
 				shiny: 3, 
 				glass: 4
 			} ).name('Material'),
-			f4.addColor( guiElems, 'objectOneCol' ).name('Colour'),
-			f5.add( guiElems, 'objectTwoMat', {
+			f2_1.addColor( guiElems, 'objectOneCol' ).name('Colour'),
+			f2_2.add( guiElems, 'objectTwoMat', {
 				matte: 1,
 				shiny: 3, 
 				glass: 4
 			} ).name('Material'),
-			f5.addColor( guiElems, 'objectTwoCol' ).name('Colour'),
-			f6.add( guiElems, 'objectThreeMat', {
+			f2_2.addColor( guiElems, 'objectTwoCol' ).name('Colour'),
+			f2_3.add( guiElems, 'objectThreeMat', {
 				matte: 1,
 				shiny: 3, 
 				glass: 4
 			} ).name('Material'),
-			f6.addColor( guiElems, 'objectThreeCol' ).name('Colour'),
-			f3.add( guiElems, 'refractiveIndex', 0.0, 1.0 ).name('Refractive Index')
+			f2_3.addColor( guiElems, 'objectThreeCol' ).name('Colour'),
 		];
 		
 		for (var i = 0; i < controllers.length; i++) {
@@ -609,7 +606,7 @@ void main(void)
     		});
   		}
   		
-  		var sizeController = f7.add( guiElems, 'canvasSize', {
+  		var sizeController = f3.add( guiElems, 'canvasSize', {
 			small: 0,
 			medium: 1,
 			large: 2,
@@ -633,7 +630,7 @@ void main(void)
 				draw();
 			}
 		} );
-		f7.add( guiElems, 'screenshot' ).name('Screenshot');
+		f3.add( guiElems, 'screenshot' ).name('Screenshot');
 		
     }
     
