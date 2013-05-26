@@ -214,11 +214,14 @@ float intersect(in vec3 boxPos, in vec3 sphPos, in vec3 sphPos2, in vec3 ro, in 
 	t = tf;
 	float d = dfloor;
 	mode = 0; // no intersection
+	float shortest = 1000000.0;
 	if ( d >= 0.0 ) {
 		normal = vec3( 0.0, 1.0, 0.0 );
 		mode = 2; // floor
 	}
 	if ( dbox >= 0.0 ) {
+		if(tb0<shortest){
+		shortest=tb0;
 		t = tb0;
 		d = dbox;
 		normal = boxnormal;
@@ -226,18 +229,25 @@ float intersect(in vec3 boxPos, in vec3 sphPos, in vec3 sphPos2, in vec3 ro, in 
 		if ( t<0.0 ) {
 			d =- 0.1;
 		}
+		}
 	}
 	if ( ds >= 0.0 ) {
+		if(ts<shortest){
+		shortest=ts;
 		t = ts;
 		d = ds;
 		normal = spherenormal;
 		mode = uObjectTwoMaterial; //sphere
+		}
 	}
 	if ( ds2 >= 0.0 ) {
+		if(ts2<shortest){
+		shortest = ts2;
 		t = ts2;
 		d = ds2;
 		normal = spherenormal2;
 		mode = uObjectThreeMaterial; //refractive sphere
+		}
 	}
 	intersection = ro + t * rd;
 	return d;
