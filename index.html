@@ -120,7 +120,6 @@ a {
 	uniform vec2 uResolution;
 	uniform vec3 uLightDir;
 	uniform vec3 uCameraPos;
-	uniform vec3 uCameraDir;
 	uniform int uObjectOneMaterial;
 	uniform vec3 uObjectOneColor;
 	uniform int uObjectTwoMaterial;
@@ -268,7 +267,8 @@ void main(void)
 	vec3 sphPos2 = vec3( -2.0, 1.5, 0.0 ); //refractive sphere position
 	//sin(x), cos(z) = disc orbit
 	vec3 eye = vec3( radius*sin(uCameraPos.x), uCameraPos.y, radius*cos(uCameraPos.x) ); //camera
-	vec3 screen = vec3( ( radius-1.0 )*sin(uCameraPos.x), uCameraPos.y, ( radius-1.0 )*cos(uCameraPos.x) );
+	float diff = eye.y / radius;
+	vec3 screen = vec3( ( radius-1.0 )*sin(uCameraPos.x), uCameraPos.y - diff, ( radius-1.0 )*cos(uCameraPos.x) );
 	vec2 screenSize = vec2( uResolution.x / uResolution.y, 1.0);
 	vec2 uv = gl_FragCoord.xy / uResolution.xy;
 	vec2 offset = screenSize * ( uv - 0.5 );
@@ -447,14 +447,6 @@ void main(void)
         var uLightDirLoc = gl.getUniformLocation(shaderProgram, "uLightDir");
         gl.uniform3f(uLightDirLoc, guiElems.lightDirX, guiElems.lightDirY, guiElems.lightDirZ);
         
-        /*//middle obj colour
-        var uMatteColLoc = gl.getUniformLocation(shaderProgram, "uMatteCol");
-        gl.uniform3f(uMatteColLoc, guiElems.matteCol[0] / 255, guiElems.matteCol[1] / 255, guiElems.matteCol[2] / 255, guiElems.matteCol[3] / 255);
-        
-        //left obj colour
-        var uShinyColLoc = gl.getUniformLocation(shaderProgram, "uShinyCol");
-        gl.uniform3f(uShinyColLoc, guiElems.shinyCol[0] / 255, guiElems.shinyCol[1] / 255, guiElems.shinyCol[2] / 255, guiElems.shinyCol[3] / 255);*/
-        
         //camera pos
         var uCameraPosLoc = gl.getUniformLocation(shaderProgram, "uCameraPos");
         gl.uniform3f(uCameraPosLoc, guiElems.cameraPosX, guiElems.cameraPosY, guiElems.cameraPosZ);
@@ -550,7 +542,7 @@ void main(void)
 		lightDirY: 7.0,
 		lightDirZ: 2.0,
 		cameraPosX: 0.0,
-		cameraPosY: 2.25,
+		cameraPosY: 3.0,
 		cameraPosZ: 6.0,
 		canvasSize: 3,
 		screenshot: function() {
@@ -685,8 +677,9 @@ void main(void)
     		var diffX = ( new_x - old_x ) / 100;
     		guiElems.cameraPosX += diffX;
     		var diffY = ( new_y - old_y ) / 100;
-    		if( guiElems.cameraPosY > 0 && diffY < 0 || guiElems.cameraPosY < 3 && diffY > 0 ) {
-    			guiElems.cameraPosY += diffY;
+    		var temp = guiElems.cameraPosY + diffY;
+    		if( temp > 1 && temp < 10 ) {
+    			guiElems.cameraPosY = temp;
     		}
     		update();
     		
@@ -705,9 +698,10 @@ void main(void)
     
     function mouseWheel(wheel) {
     
-    	var wheel = event.wheelDelta;	
-    	if( guiElems.cameraPosZ > 1 && wheel > 0 || guiElems.cameraPosZ < 10 && wheel < 0 ) {
-    	 guiElems.cameraPosZ -= wheel * 0.005;
+    	var wheel = event.wheelDelta;
+    	var temp = guiElems.cameraPosZ - wheel * 0.005;
+    	if( temp > 4 && wheel && temp < 10 ) {
+    	 guiElems.cameraPosZ = temp;
     	}
     	update();
     	
