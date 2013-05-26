@@ -348,6 +348,7 @@ void main(void)
     var gl;
 
     function initGL(canvas) {
+    
         try {
             gl = canvas.getContext("experimental-webgl", {
             	antialias: true,
@@ -358,9 +359,11 @@ void main(void)
         if (!gl) {
             alert("Could not initialise WebGL, sorry :-(");
         }
+        
     }
 
     function getShader(gl, id) {
+    
         var shaderScript = document.getElementById(id);
         if (!shaderScript) {
             return null;
@@ -398,6 +401,7 @@ void main(void)
     var shaderProgram;
 
     function initShaders() {
+    
         var fragmentShader = getShader(gl, "shader-fs");
         var vertexShader = getShader(gl, "shader-vs");
 
@@ -417,6 +421,7 @@ void main(void)
         
         resizeCanvas( 400, 400 );
         updateUniforms();
+        
     }
     
     function updateUniforms() {
@@ -454,29 +459,46 @@ void main(void)
     var squareVertexPositionBuffer;
 
     function initVertexBuffer() {
+    
         squareVertexPositionBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
+        
         var vertices = [
              1.0,  1.0,
             -1.0,  1.0,
              1.0, -1.0,
             -1.0, -1.0
         ];
+        
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
         squareVertexPositionBuffer.itemSize = 2;
         squareVertexPositionBuffer.numItems = 4;
         gl.vertexAttribPointer(shaderProgram.squareVertexPositionAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+        
     }
     
     var canvas, canvas_rect;
     
     
     /*
-    	program Setup
+    	program setup
     */
     
     function init() {
+    
         canvas = document.getElementById("canvas");
+        canvas.addEventListener("mousedown", mouseDown);
+        canvas.addEventListener("mousemove", mouseMove);
+        canvas.addEventListener("mouseup", mouseUp);
+        canvas.addEventListener('mousewheel', function(event){
+			mouseWheel(event.wheelDelta);
+			event.preventDefault();
+		}, false);
+		canvas.addEventListener("DOMMouseScroll", function(event){
+			mouseWheel(event.detail * 10);
+			event.preventDefault();
+		}, false);
+		
         initGL(canvas);
         initShaders();
         initVertexBuffer();
@@ -487,10 +509,13 @@ void main(void)
 		initGUI();
 		resizeWindow();
         draw();
+        
     }
     
     var gui = new dat.GUI();
+    
     var guiElems = {
+    
 		lightDirX: 5.0,
 		lightDirY: 7.0,
 		lightDirZ: 2.0,
@@ -499,19 +524,23 @@ void main(void)
 		cameraPosZ: 6.0,
 		matteCol: [ 200, 150, 100 ],
 		shinyCol: [ 100, 100, 200 ],
-		canvasSize: 0,
+		canvasSize: 3,
 		screenshot: function() {
 			screenshot();
 		},
 		objectOneMat: 1,
 		objectTwoMat: 3,
 		objectThreeMat: 4
+		
 	};
+	
     function initGUI() {
+    
 		var f1 = gui.addFolder('Light Options');
 		var f2 = gui.addFolder('Camera Options');
 		var f3 = gui.addFolder('Object Options');
 		var f4 = gui.addFolder('Render Options');
+		
     	var controllers = [
 			f1.add( guiElems, 'lightDirX', -10.0, 10.0 ).name('Light X'),
 			f1.add( guiElems, 'lightDirY', 0.1, 10.0 ).name('Light Y'),
@@ -572,11 +601,13 @@ void main(void)
 		
     }
     
+    
     /*
     	program functions
     */
     
     function resizeWindow() {
+    
     	if( guiElems.canvasSize == 3 ) {
     		resizeCanvas( $(window).width(), $(window).height() );
     		$("#canvas").css( "top", 0);
@@ -588,18 +619,67 @@ void main(void)
     	if( $("#popup").is(":visible") ) {
     		$("#popup").css( "top", (window.innerHeight - $("#popup").outerHeight()) / 2);
     	}
+    	
     }
     
     function resizeCanvas( width, height ) {
+    
     	canvas.width = width;
     	canvas.height = height;
     	gl.viewportWidth = width;
         gl.viewportHeight = height;
         var uResolutionLoc = gl.getUniformLocation(shaderProgram, "uResolution");
         gl.uniform2f(uResolutionLoc, width, height);
+        
+    }
+    
+    var new_x, new_y, old_x, old_y, clicked = false, dragged = false;
+    function mouseDown(event) {
+    
+    	new_x = old_x = event.pageX - canvas_rect.left;
+    	new_y = old_y = event.pageY - canvas_rect.top;
+    	clicked = true;
+    	
+    }
+    
+    function mouseMove(event) {
+    
+    	new_x = event.pageX - canvas_rect.left;
+    	new_y = event.pageY - canvas_rect.top;
+    	
+    	if(clicked) {
+    		
+    		var diffX = ( new_x - old_x ) / 100;
+    		guiElems.cameraPosX += diffX;
+    		var diffY = ( new_y - old_y ) / 100;
+    		guiElems.cameraPosY += diffY;
+    		update();
+    		
+    	}
+    	
+    	old_x = new_x;
+    	old_y = new_y;
+    	
+    }
+    
+    function mouseUp(event) {
+    
+    	clicked = dragged = false;
+    	
+    }
+    
+    function mouseWheel(wheel) {
+    
+    	var wheel = event.wheelDelta;	
+    	if( guiElems.cameraPosZ > 1 && wheel > 0 || guiElems.cameraPosZ < 10 && wheel < 0 ) {
+    	 guiElems.cameraPosZ -= wheel * 0.005;
+    	}
+    	update();
+    	
     }
     
     function printDialog( content, action, timeout ) {
+    
 		var popup = $('#popup'); 
 		popup.html( content );
 	
@@ -613,20 +693,26 @@ void main(void)
 		
 		popup.css( "top", (window.innerHeight - $("#popup").outerHeight()) / 2);
 		popup.fadeIn( 'fast' );
+		
 	}
 
 	function removeDialog() {
+	
 		var popup = $('#popup'); 
 		popup.removeAttr( 'onclick' );
 		popup.fadeOut( 'fast' );
+		
 	}
 	
 	function screenshot() {
+	
     	var data = canvas.toDataURL("image/png");
     	printDialog(
 			'<p class="text_vlarge">Click <a href="' + data + '" download="screenshot">here</a> to download the screenshot.</p>',
 		'removeDialog()', false );
+		
 	}
+    
     
     /*
     	update functions
@@ -640,10 +726,12 @@ void main(void)
     }
     
     function draw() {
+    
         gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems);
+        
     }
     
 	</script>
