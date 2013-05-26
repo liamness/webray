@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+
+<head>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript" src="dat.gui.min.js"></script>
+<title>raytracer demo</title>
+<link rel=”shortcut icon” href=”favicon.ico” type=”image/x-icon” />
+<style>
+html, body {
+	width: 100%;
+	height: 100%;
+}
+
+body {
+	border: 0;
+	margin: 0;
+}
+
+a {
+	text-decoration: none;
+	color: #06f;
+}
+
+#demoWrap {
+	width: 100%;
+	height: 100%;
+	text-align: center;
+	overflow: hidden;
+}
+
+#canvas {
+	position: relative;
+}
+
+#popupWrap {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+	}
+	
+#popup {
+	position: relative;
+	top: 0;
+	left: 0;
+	width: 500px;
+	padding: 10px 20px;
+	margin: 0 auto;
+	text-align: center;
+	background-color: #FFF;
+	border: 5px solid #000;
+	border-radius: 15px;
+}
+
+.text_vvlarge {
+	font-family: calibri, arial, sans-serif;
+	font-size: 30px;
+	line-height: 1.5em;
+}
+
+.text_vlarge {
+	font-family: calibri, arial, sans-serif;
+	font-size: 24px;
+	line-height: 1.5em;
+}
+
+.text_large {
+	font-family: calibri, arial, sans-serif;
+	font-size: 18px;
+	line-height: 1.5em;
+}
+
+.text_normal {
+	font-family: calibri, arial, sans-serif;
+	font-size: 15px;
+	line-height: 1.5em;
+}
+
+.text_small {
+	font-family: calibri, arial, sans-serif;
+	font-size: 13px;
+	line-height: 1.5em;
+}
+
+.text_vsmall {
+	font-family: calibri, arial, sans-serif;
+	font-size: 11px;
+	line-height: 1.5em;
+}
+
+.text_vvsmall {
+	font-family: calibri, arial, sans-serif;
+	font-size: 9px;
+	line-height: 1.5em;
+}
+</style>
+</head>
+
+<body>
+	<div id="demoWrap">
+		<canvas id="canvas">If you're seeing this, it probably means your browser doesn't support WebGL, and so you can't see this lovely demo. :(</canvas>
+    </div>
+    <div id="popupWrap">
+		<div id="popup">
+			<p class="text_vlarge">Say hi, some instructional stuff goes here.</p>
+			<p class="text_vlarge"><a onclick="removeDialog()">Click here to begin.</a></p>
+		</div>
+	</div>
+    
+    <script id="shader-fs" type="x-shader/x-fragment">
+	
+	#ifdef GL_ES
+	precision mediump float;
+	#endif
+
+	uniform vec2 uResolution;
+	uniform vec3 uLightDir;
+	uniform vec3 uBoxCol;
+	uniform vec3 uSphCol;
+	uniform vec3 uCameraPos;
+	uniform vec3 uCameraDir;
+
+	const vec3 up = vec3(0.,1.,0.);
+
+//height = floor plane y-coord
+//ro ray origin
+//rd ray direction
+//height... height!
+//t0 point on ray
+float intersectfloor(vec3 ro, vec3 rd, float height, out float t0)
+{	
+	if (rd.y==0.0) {
+		t0 = 100000.0;
+		return 0.0;
+	}
+	
+	t0 = -(ro.y - height)/rd.y;
+	t0 = min(100000.0,t0);
+	return t0;
+}
+
+// @baldwin
+// see http://www.cs.unc.edu/~rademach/xroads-RT/RTarticle.html
+// axis-aligned; length of side = size; slab implementation (t0 near, t1 far)
+// returns positive value if there are intersections
+float intersectbox( in vec3 ro, in vec3 rd, float size, out float t0, out float t1, out vec3 normal)
+{
+    vec3 ir = 1.0/rd; //inverse ray
+    vec3 tb = ir * (vec3(-size*.5)-ro);
+    vec3 tt = ir * (vec3(size*.5)-ro);
+    vec3 tn = min(tt, tb);
+    vec3 tx = max(tt, tb);
+    vec2 t = max(tn.xx, tn.yz);
+    t0 = max(t.x, t.y);
+    t = min(tx.xx, tx.yz);
+    t1 = min(t.x, t.y);
+	float d = (t1-t0);
+	vec3 i = ro + t0*rd;
+	normal = step(size*.499,abs(i))*sign(i);
+	if (t0<-0.01) d = t0;
+	return d;
+}
+
+//calcuate sphere normals
+	vec3 nSphere( in vec3 pos, in vec4 sph ){
+		return (pos - sph.xyz)/sph.w;
+	}
+
+float intersectsphere( in vec3 sphPos, in vec3 ro, in vec3 rd, float rad, out float t, out vec3 normal ){
+	vec3 coord = ro - sphPos.xyz;
+	float b = 2.0 * dot( coord, rd );
+	float c = dot( coord, coord ) - rad * rad;
+	float h = b*b - 4.0*c;
+	if( h < 0.0 ){
+		return -1.0;
+	}
+	t = ( -b - sqrt( h )) / 2.0;
+	
+	vec3 pos = ro + t * rd;
+	vec4 sph = vec4( sphPos.xyz, rad );
+	normal = nSphere( pos, sph );
+	
+	return t;
+}
+
+float intersect(in vec3 boxPos, in vec3 sphPos, in vec3 sphPos2, in vec3 ro, in vec3 rd, out vec3 intersection, out vec3 normal, out int mode, out float t) 
+{
+	//check box
+	float tb0 = 0.0; //nearpoint
+	float tb1 = 0.0; //farpoint
+	vec3 boxnormal;
+	float dbox = intersectbox( ro-boxPos, rd, 1.0, tb0, tb1, boxnormal );
+	//float dbox = intersectsphere( boxPos, ro, rd, 1.0, tb0, boxnormal ); //uncomment to make sphere
+	
+	//check sphere REFLECTIVE
+	float ts = 0.0;
+	vec3 spherenormal;
+	float ds = intersectsphere( sphPos, ro, rd, 1.0, ts, spherenormal );
+	
+	//check sphere REFRACTIVE
+	float ts2 = 0.0;
+	vec3 spherenormal2;
+	float ds2 = intersectsphere( sphPos2, ro, rd, 1.0, ts2, spherenormal2 );
+	
+	//check floor
+	float tf = 0.0; //floor point
+	float dfloor = intersectfloor(ro,rd,0.,tf);
+	t = tf;
+	float d = dfloor;
+	mode = 0; // no intersection
+	if ( d >= 0.0 ) {
+		normal = vec3( 0.0, 1.0, 0.0 );
+		mode = 2; // floor
+	}
+	if ( dbox >= 0.0 ) {
+		t = tb0;
+		d = dbox;
+		normal = boxnormal;
+		mode = 1; // box
+		if ( t<0.0 ) {
+			d =- 0.1;
+		}
+	}
+	if ( ds >= 0.0 ) {
+		t = ts;
+		d = ds;
+		normal = spherenormal;
+		mode = 3; //sphere
+	}
+	if ( ds2 >= 0.0 ) {
+		t = ts2;
+		d = ds2;
+		normal = spherenormal2;
+		mode = 4; //refractive sphere
+	}
+	intersection = ro + t * rd;
+	return d;
+}
+				
+void main(void)
+{
+	vec3 light = uLightDir; //light pos
+	float radius = uCameraPos.z; //camera rad from origin
+	vec3 boxPos = vec3( 0.0, 1.0, 0.0 ); //cube position
+	vec3 sphPos = vec3( 2.0, 1.5, 0.0 ); //sphere position
+	vec3 sphPos2 = vec3( -2.0, 1.5, 0.0 ); //refractive sphere position
+	//sin(x), cos(z) = disc orbit
+	vec3 eye = vec3( radius*sin(uCameraPos.x), uCameraPos.y, radius*cos(uCameraPos.x) ); //camera
+	vec3 screen = vec3( ( radius-1.0 )*sin(uCameraPos.x), uCameraPos.y, ( radius-1.0 )*cos(uCameraPos.x) );
+	vec2 screenSize = vec2( uResolution.x / uResolution.y, 1.0);
+	vec2 uv = gl_FragCoord.xy / uResolution.xy;
+	vec2 offset = screenSize * ( uv - 0.5 );
+	vec3 right = cross( up, normalize( screen - eye ) );
+	vec3 ro = screen + offset.y * up + offset.x * right; //ray origin
+	vec3 rd = normalize( ro - eye ); //ray direction
+	vec3 i = vec3( 0.0 ); //intersection
+	vec3 n = vec3( 0.0 ); //normal
+	int m,m2; //mode (m2 for shadowcast)
+	float d,lightd,ra,global,direct,shade,t,tlight; //ra reflectivity
+	vec3 lrd,i2,n2; //lightray direction, shadow intersection, shadow normal (unused)
+	i2 = vec3( 0.0 ); //initialise to remove artefacts
+	vec3 c = vec3( 0.0 ); //colourisation
+	vec3 ca = vec3( 0.0 ); //colourisation
+	float lra = 1.0; //attenuation
+	
+	for ( int reflections = 0; reflections < 10; reflections++ ) { 
+		//get intersection
+		d = intersect( boxPos, sphPos, sphPos2, ro, rd, i, n, m, t );
+		//shadows
+		lrd = normalize( light - i ); //light direction relative to intersection
+		tlight = length( light - i ); 
+		lightd = smoothstep( 0.5 * length( i - i2 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd, i2, n2, m2, t ) );
+		if( m2 == 4 ){ //attenuate shadow for refractive sphere
+			lightd *= 10.0;
+		}
+		if ( t > tlight ){
+			lightd = 1.0;
+		}
+		//colours
+		global = 0.3;
+		direct = max( ( 10.0 / length( lrd ) ) * dot( lrd, n ) , 0.0 );
+		shade = global + direct * lightd;
+		if ( m == 0 ) { //"SKY"
+			ra = 0.0;
+			c = vec3( 0.2, 0.5, 0.9 ); 
+		}
+		if ( m == 1 ) { //CUBE
+			ra = 0.1;
+			c = shade * uBoxCol; 
+		}
+		if ( m == 2 ) { //FLOOR
+			ra = 0.3;
+			vec2 mxz = abs( fract( i.xz ) * 2.0 - 1.0 );
+			float fade = clamp( 1.0 - length( i.xz ) * 0.05, 0.0, 1.0 );
+			float fc = mix( 0.5, smoothstep( 1.0, 0.9, mxz.x + mxz.y ), fade );
+			c = vec3(fc*shade);
+		}
+		if ( m == 3 ) { //SPHERE
+			ra = 0.2;
+			c = shade * uSphCol;
+		}
+		if ( m == 4 ) { //REFRACTIVE SPHERE
+			ra = 1.0;
+			c = shade * vec3( 0.0, 0.0, 0.0 );
+		}
+		// attenuate reflections for next iteration
+		ca += lra * c;
+		lra *= ra;
+		if( m != 4 ){
+			rd = reflect( rd, n );
+		} else {
+			rd = refract( rd, n, 0.9 );
+		}
+		ro = i + 0.01 * rd;
+	}
+	gl_FragColor = vec4( ca / (1.0+ca), 1.0 );
+	//gl_FragColor = vec4( sqrt( ca ), 1.0 );
+}
+    
+	</script>
+
+	<script id="shader-vs" type="x-shader/x-vertex">
+	
+	attribute vec2 aSquareVertexPosition;
+	
+    void main(void) {
+        gl_Position = vec4(aSquareVertexPosition, 0.0, 1.0);
+    }
+    
+	</script>
+    
+    <script type="text/javascript">
+    
+    window.onload = init;
+    window.onresize = resizeWindow;
+    
+    
+    /*
+    	webgl Setup
+    */
+    
+    var gl;
+
+    function initGL(canvas) {
+        try {
+            gl = canvas.getContext("experimental-webgl", {
+            	antialias: true,
+            	preserveDrawingBuffer: true
+            });
+        } catch (e) {
+        }
+        if (!gl) {
+            alert("Could not initialise WebGL, sorry :-(");
+        }
+    }
+
+    function getShader(gl, id) {
+        var shaderScript = document.getElementById(id);
+        if (!shaderScript) {
+            return null;
+        }
+
+        var str = "";
+        var k = shaderScript.firstChild;
+        while (k) {
+            if (k.nodeType == 3) {
+                str += k.textContent;
+            }
+            k = k.nextSibling;
+        }
+
+        var shader;
+        if (shaderScript.type == "x-shader/x-fragment") {
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        } else if (shaderScript.type == "x-shader/x-vertex") {
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        } else {
+            return null;
+        }
+
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+
+        return shader;
+    }
+
+    var shaderProgram;
+
+    function initShaders() {
+        var fragmentShader = getShader(gl, "shader-fs");
+        var vertexShader = getShader(gl, "shader-vs");
+
+        shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialise shaders");
+        }
+
+        gl.useProgram(shaderProgram);
+
+        shaderProgram.squareVertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aSquareVertexPosition");
+        gl.enableVertexAttribArray(shaderProgram.squareVertexPositionAttribute);
+        
+        resizeCanvas( 400, 400 );
+        updateUniforms();
+    }
+    
+    function updateUniforms() {
+        
+        var uLightDirLoc = gl.getUniformLocation(shaderProgram, "uLightDir");
+        gl.uniform3f(uLightDirLoc, guiElems.lightDirX, guiElems.lightDirY, guiElems.lightDirZ);
+        
+        var uBoxColLoc = gl.getUniformLocation(shaderProgram, "uBoxCol");
+        gl.uniform3f(uBoxColLoc, guiElems.boxCol[0] / 255, guiElems.boxCol[1] / 255, guiElems.boxCol[2] / 255, guiElems.boxCol[3] / 255);
+        
+        var uSphColLoc = gl.getUniformLocation(shaderProgram, "uSphCol");
+        gl.uniform3f(uSphColLoc, guiElems.sphCol[0] / 255, guiElems.sphCol[1] / 255, guiElems.sphCol[2] / 255, guiElems.sphCol[3] / 255);
+        
+        var uCameraPosLoc = gl.getUniformLocation(shaderProgram, "uCameraPos");
+        gl.uniform3f(uCameraPosLoc, guiElems.cameraPosX, guiElems.cameraPosY, guiElems.cameraPosZ);
+        
+    }
+    
+    var squareVertexPositionBuffer;
+
+    function initVertexBuffer() {
+        squareVertexPositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
+        var vertices = [
+             1.0,  1.0,
+            -1.0,  1.0,
+             1.0, -1.0,
+            -1.0, -1.0
+        ];
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+        squareVertexPositionBuffer.itemSize = 2;
+        squareVertexPositionBuffer.numItems = 4;
+        gl.vertexAttribPointer(shaderProgram.squareVertexPositionAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    }
+    
+    var canvas, canvas_rect;
+    
+    
+    /*
+    	program Setup
+    */
+    
+    function init() {
+        canvas = document.getElementById("canvas");
+        initGL(canvas);
+        initShaders();
+        initVertexBuffer();
+        canvas_rect = canvas.getBoundingClientRect();
+
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+		
+		initGUI();
+		resizeWindow();
+        draw();
+    }
+    
+    var gui = new dat.GUI();
+    var guiElems = {
+		lightDirX: 5.0,
+		lightDirY: 7.0,
+		lightDirZ: 2.0,
+		boxCol: [ 200, 150, 100 ],
+		sphCol: [ 100, 100, 200 ],
+		canvasSize: 0,
+		cameraPosX: 0.0,
+		cameraPosY: 2.25,
+		cameraPosZ: 6.0,
+		screenshot: function() {
+			screenshot();
+		}
+	};
+    function initGUI() {
+		var f1 = gui.addFolder('Light');
+		var f2 = gui.addFolder('Render');
+    	var controllers = [
+			f1.add( guiElems, 'lightDirX', -10.0, 10.0 ).name('Light X'),
+			f1.add( guiElems, 'lightDirY', 0.1, 10.0 ).name('Light Y'),
+			f1.add( guiElems, 'lightDirZ', -10.0, 10.0 ).name('Light Z'),
+			f1.addColor( guiElems, 'boxCol' ).name('Cube Colour'),
+			f1.addColor( guiElems, 'sphCol' ).name('Sphere Colour'),
+			f1.add( guiElems, 'cameraPosX', -2.0, 2.0).name('Camera Position'),
+			f1.add( guiElems, 'cameraPosY', 0.1, 3.0).name('Camera Height'),
+			f1.add( guiElems, 'cameraPosZ', 1.0, 10.0).name('Camera Zoom')
+		];
+		
+		for (var i = 0; i < controllers.length; i++) {
+    		controllers[i].onChange( function() {
+    			update();
+    		});
+  		}
+  		
+  		var sizeController = f2.add( guiElems, 'canvasSize', {
+			small: 0,
+			medium: 1,
+			large: 2,
+			fullscreen: 3
+		} ).name('Canvas Size');
+		sizeController.onFinishChange( function() {
+			if( guiElems.canvasSize == 0 ) {
+				resizeCanvas( 400, 400 );
+				resizeWindow();
+				draw();
+			} else if( guiElems.canvasSize == 1 ) {
+				resizeCanvas( 640, 480 );
+				resizeWindow();
+				draw();
+			} else if( guiElems.canvasSize == 2 ) {
+				resizeCanvas( 1080, 720 );
+				resizeWindow();
+				draw();
+			} else if( guiElems.canvasSize == 3 ) {
+				resizeWindow();
+				draw();
+			}
+		} );
+		f2.add( guiElems, 'screenshot' );
+		
+		f1.open();
+		f2.open();
+    }
+    
+    /*
+    	program functions
+    */
+    
+    function resizeWindow() {
+    	if( guiElems.canvasSize == 3 ) {
+    		resizeCanvas( $(window).width(), $(window).height() );
+    		$("#canvas").css( "top", 0);
+    		draw();
+    	} else {
+    		$("#canvas").css( "top", ($(window).height() - $("#canvas").outerHeight()) / 2);
+    	}
+    	
+    	if( $("#popup").is(":visible") ) {
+    		$("#popup").css( "top", (window.innerHeight - $("#popup").outerHeight()) / 2);
+    	}
+    }
+    
+    function resizeCanvas( width, height ) {
+    	canvas.width = width;
+    	canvas.height = height;
+    	gl.viewportWidth = width;
+        gl.viewportHeight = height;
+        var uResolutionLoc = gl.getUniformLocation(shaderProgram, "uResolution");
+        gl.uniform2f(uResolutionLoc, width, height);
+    }
+    
+    function printDialog( content, action, timeout ) {
+		var popup = $('#popup'); 
+		popup.html( content );
+	
+		if( action ) {
+			popup.attr( 'onclick', action );
+		}
+	
+		if( timeout ) {
+			setTimeout( removeDialog, timeout );
+		}
+		
+		popup.css( "top", (window.innerHeight - $("#popup").outerHeight()) / 2);
+		popup.fadeIn( 'fast' );
+	}
+
+	function removeDialog() {
+		var popup = $('#popup'); 
+		popup.removeAttr( 'onclick' );
+		popup.fadeOut( 'fast' );
+	}
+	
+	function screenshot() {
+    	var data = canvas.toDataURL("image/png");
+    	printDialog(
+			'<p class="text_vlarge">Click <a href="' + data + '" download="screenshot">here</a> to download the screenshot.</p>',
+		'removeDialog()', false );
+	}
+    
+    /*
+    	update functions
+    */
+    
+    function update() {
+    	
+    	updateUniforms();
+    	draw();
+    	
+    }
+    
+    function draw() {
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems);
+    }
+    
+	</script>
+    
+</body>
+
+</html>
