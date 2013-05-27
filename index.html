@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 
@@ -317,7 +318,7 @@ void main(void)
 		shade1 = global + direct1 * lightd1;
 		direct2 = max( ( 10.0 / length( lrd2 ) ) * dot( lrd2, n ) , 0.0 );
 		shade2 = global + direct2 * lightd2;
-		shade = mix( shade1, shade2, 1.0 );
+		shade = (shade1 + shade2) / 2.0;
 		if ( m == 0 ) { //"SKY"
 			ra = 0.0;
 			col = vec3( 0.2, 0.5, 0.9 ); 
