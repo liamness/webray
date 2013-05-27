@@ -284,6 +284,7 @@ void main(void)
 	float d,lightd1,lightd2,ra,global,direct1,direct2,shade1,shade2,shade,t,tlight1,tlight2; //ra reflectivity
 	vec3 lrd1,lrd2,i2,i3,n2,n3; //lightray direction, shadow intersection, shadow normal (unused)
 	i2 = vec3( 0.0 ); //initialise to remove artefacts
+	i3 = vec3( 0.0 ); // ^^
 	vec3 c = vec3( 0.0 ), c2 = vec3( 0.0 ), c3 = vec3( 0.0 ); //input colour
 	vec3 col = vec3( 0.0 ); //colourisation
 	vec3 ca = vec3( 0.0 ); //colourisation
