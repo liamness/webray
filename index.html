@@ -118,7 +118,8 @@ a {
 	#endif
 
 	uniform vec2 uResolution;
-	uniform vec3 uLightDir;
+	uniform vec3 uLight1Dir;
+	uniform vec3 uLight2Dir;
 	uniform vec3 uCameraPos;
 	uniform int uObjectOneMaterial;
 	uniform vec3 uObjectOneColor;
@@ -260,14 +261,15 @@ float intersect(in vec3 boxPos, in vec3 sphPos, in vec3 sphPos2, in vec3 ro, in 
 				
 void main(void)
 {
-	vec3 light = uLightDir; //light pos
+	vec3 light1 = uLight1Dir; //light pos
+	vec3 light2 = uLight2Dir; //light pos
 	float radius = uCameraPos.z; //camera rad from origin
 	vec3 boxPos = vec3( 0.0, 1.0, 0.0 ); //cube position
 	vec3 sphPos = vec3( 2.0, 1.5, 0.0 ); //sphere position
 	vec3 sphPos2 = vec3( -2.0, 1.5, 0.0 ); //refractive sphere position
 	//sin(x), cos(z) = disc orbit
 	vec3 eye = vec3( radius*sin(uCameraPos.x), uCameraPos.y, radius*cos(uCameraPos.x) ); //camera
-	float diff = eye.y / radius;
+	float diff = (eye.y - 1.0) / radius;
 	vec3 screen = vec3( ( radius-1.0 )*sin(uCameraPos.x), uCameraPos.y - diff, ( radius-1.0 )*cos(uCameraPos.x) );
 	vec2 screenSize = vec2( uResolution.x / uResolution.y, 1.0);
 	vec2 uv = gl_FragCoord.xy / uResolution.xy;
@@ -277,11 +279,11 @@ void main(void)
 	vec3 rd = normalize( ro - eye ); //ray direction
 	vec3 i = vec3( 0.0 ); //intersection
 	vec3 n = vec3( 0.0 ); //normal
-	int m,m2; //mode (m2 for shadowcast)
-	float d,lightd,ra,global,direct,shade,t,tlight; //ra reflectivity
-	vec3 lrd,i2,n2; //lightray direction, shadow intersection, shadow normal (unused)
+	int m,m2,m3; //mode (m2 for shadowcast)
+	float d,lightd1,lightd2,ra,global,direct1,direct2,shade1,shade2,shade,t,tlight1,tlight2; //ra reflectivity
+	vec3 lrd1,lrd2,i2,i3,n2,n3; //lightray direction, shadow intersection, shadow normal (unused)
 	i2 = vec3( 0.0 ); //initialise to remove artefacts
-	vec3 c = vec3( 0.0 ), c2 = vec3( 0.0 ); //input colour
+	vec3 c = vec3( 0.0 ), c2 = vec3( 0.0 ), c3 = vec3( 0.0 ); //input colour
 	vec3 col = vec3( 0.0 ); //colourisation
 	vec3 ca = vec3( 0.0 ); //colourisation
 	float lra = 1.0; //attenuation
@@ -289,20 +291,33 @@ void main(void)
 	for ( int reflections = 0; reflections < 10; reflections++ ) { 
 		//get intersection
 		d = intersect( boxPos, sphPos, sphPos2, ro, rd, i, n, m, c, t );
-		//shadows
-		lrd = normalize( light - i ); //light direction relative to intersection
-		tlight = length( light - i ); 
-		lightd = smoothstep( 0.5 * length( i - i2 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd, i2, n2, m2, c2, t ) );
+		//shadow 1
+		lrd1 = normalize( light1 - i ); //light direction relative to intersection
+		tlight1 = length( light1 - i ); 
+		lightd1 = smoothstep( 0.5 * length( i - i2 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd1, i2, n2, m2, c2, t ) );
 		if( m2 == 4 ){ //attenuate shadow for refractive object
-			lightd *= 10.0;
+			lightd1 *= 10.0;
 		}
-		if ( t > tlight ){
-			lightd = 1.0;
+		if ( t > tlight1 ){
+			lightd1 = 1.0;
+		}
+		//shadow 2
+		lrd2 = normalize( light2 - i ); //light direction relative to intersection
+		tlight2 = length( light2 - i ); 
+		lightd2 = smoothstep( 0.5 * length( i - i3 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd2, i3, n3, m3, c3, t ) );
+		if( m3 == 4 ){ //attenuate shadow for refractive object
+			lightd2 *= 10.0;
+		}
+		if ( t > tlight2 ){
+			lightd2 = 1.0;
 		}
 		//colours
 		global = 0.3;
-		direct = max( ( 10.0 / length( lrd ) ) * dot( lrd, n ) , 0.0 );
-		shade = global + direct * lightd;
+		direct1 = max( ( 10.0 / length( lrd1 ) ) * dot( lrd1, n ) , 0.0 );
+		shade1 = global + direct1 * lightd1;
+		direct2 = max( ( 10.0 / length( lrd2 ) ) * dot( lrd2, n ) , 0.0 );
+		shade2 = global + direct2 * lightd2;
+		shade = mix( shade1, shade2, 1.0 );
 		if ( m == 0 ) { //"SKY"
 			ra = 0.0;
 			col = vec3( 0.2, 0.5, 0.9 ); 
@@ -443,9 +458,13 @@ void main(void)
     
     function updateUniforms() {
         
-        //light position
-        var uLightDirLoc = gl.getUniformLocation(shaderProgram, "uLightDir");
-        gl.uniform3f(uLightDirLoc, guiElems.lightDirX, guiElems.lightDirY, guiElems.lightDirZ);
+        //light 1 position
+        var uLight1DirLoc = gl.getUniformLocation(shaderProgram, "uLight1Dir");
+        gl.uniform3f(uLight1DirLoc, guiElems.light1DirX, guiElems.light1DirY, guiElems.light1DirZ);
+        
+        //light 2 position
+        var uLight2DirLoc = gl.getUniformLocation(shaderProgram, "uLight2Dir");
+        gl.uniform3f(uLight2DirLoc, guiElems.light2DirX, guiElems.light2DirY, guiElems.light2DirZ);
         
         //camera pos
         var uCameraPosLoc = gl.getUniformLocation(shaderProgram, "uCameraPos");
@@ -538,9 +557,12 @@ void main(void)
     
     var guiElems = {
     
-		lightDirX: 5.0,
-		lightDirY: 7.0,
-		lightDirZ: 2.0,
+		light1DirX: 5.0,
+		light1DirY: 7.0,
+		light1DirZ: 2.0,
+		light2DirX: -3.0,
+		light2DirY: 7.0,
+		light2DirZ: -4.0,
 		cameraPosX: 0.0,
 		cameraPosY: 3.0,
 		cameraPosZ: 6.0,
@@ -568,9 +590,12 @@ void main(void)
 		var f3 = gui.addFolder('Render Options');
 		
     	var controllers = [
-			f1.add( guiElems, 'lightDirX', -10.0, 10.0 ).name('Light X'),
-			f1.add( guiElems, 'lightDirY', 0.1, 10.0 ).name('Light Y'),
-			f1.add( guiElems, 'lightDirZ', -10.0, 10.0 ).name('Light Z'),
+			f1.add( guiElems, 'light1DirX', -10.0, 10.0 ).name('Light 1 X'),
+			f1.add( guiElems, 'light1DirY', 0.1, 10.0 ).name('Light 1 Y'),
+			f1.add( guiElems, 'light1DirZ', -10.0, 10.0 ).name('Light 1 Z'),
+			f1.add( guiElems, 'light2DirX', -10.0, 10.0 ).name('Light 2 X'),
+			f1.add( guiElems, 'light2DirY', 0.1, 10.0 ).name('Light 2 Y'),
+			f1.add( guiElems, 'light2DirZ', -10.0, 10.0 ).name('Light 2 Z'),
 			f2.add( guiElems, 'refractiveIndex', 0.0, 1.0 ).name('Refractive Index'),
 			f2_1.add( guiElems, 'objectOneMat', {
 				matte: 1,
@@ -676,7 +701,7 @@ void main(void)
     		
     		var diffX = ( new_x - old_x ) / 100;
     		guiElems.cameraPosX += diffX;
-    		var diffY = ( new_y - old_y ) / 100;
+    		var diffY = ( new_y - old_y ) / 25;
     		var temp = guiElems.cameraPosY + diffY;
     		if( temp > 1 && temp < 10 ) {
     			guiElems.cameraPosY = temp;
