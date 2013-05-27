@@ -120,7 +120,9 @@ a {
 
 	uniform vec2 uResolution;
 	uniform vec3 uLight1Dir;
+	uniform bool uLight1Enabled;
 	uniform vec3 uLight2Dir;
+	uniform bool uLight2Enabled;
 	uniform vec3 uCameraPos;
 	uniform int uObjectOneMaterial;
 	uniform vec3 uObjectOneColor;
@@ -283,8 +285,7 @@ void main(void)
 	int m,m2,m3; //mode (m2 for shadowcast)
 	float d,lightd1,lightd2,ra,global,direct1,direct2,shade1,shade2,shade,t,tlight1,tlight2; //ra reflectivity
 	vec3 lrd1,lrd2,i2,i3,n2,n3; //lightray direction, shadow intersection, shadow normal (unused)
-	i2 = vec3( 0.0 ); //initialise to remove artefacts
-	i3 = vec3( 0.0 ); // ^^
+	i2 = vec3( 0.0 ), i3 = vec3( 0.0 ); //initialise to remove artefacts
 	vec3 c = vec3( 0.0 ), c2 = vec3( 0.0 ), c3 = vec3( 0.0 ); //input colour
 	vec3 col = vec3( 0.0 ); //colourisation
 	vec3 ca = vec3( 0.0 ); //colourisation
@@ -293,32 +294,45 @@ void main(void)
 	for ( int reflections = 0; reflections < 10; reflections++ ) { 
 		//get intersection
 		d = intersect( boxPos, sphPos, sphPos2, ro, rd, i, n, m, c, t );
-		//shadow 1
-		lrd1 = normalize( light1 - i ); //light direction relative to intersection
-		tlight1 = length( light1 - i ); 
-		lightd1 = smoothstep( 0.5 * length( i - i2 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd1, i2, n2, m2, c2, t ) );
-		if( m2 == 4 ){ //attenuate shadow for refractive object
-			lightd1 *= 10.0;
-		}
-		if ( t > tlight1 ){
-			lightd1 = 1.0;
-		}
-		//shadow 2
-		lrd2 = normalize( light2 - i ); //light direction relative to intersection
-		tlight2 = length( light2 - i ); 
-		lightd2 = smoothstep( 0.5 * length( i - i3 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd2, i3, n3, m3, c3, t ) );
-		if( m3 == 4 ){ //attenuate shadow for refractive object
-			lightd2 *= 10.0;
-		}
-		if ( t > tlight2 ){
-			lightd2 = 1.0;
-		}
-		//colours
+		
+		//shadows
 		global = 0.3;
-		direct1 = max( ( 10.0 / length( lrd1 ) ) * dot( lrd1, n ) , 0.0 );
-		shade1 = global + direct1 * lightd1;
-		direct2 = max( ( 10.0 / length( lrd2 ) ) * dot( lrd2, n ) , 0.0 );
-		shade2 = global + direct2 * lightd2;
+		
+		//shadow 1
+		if( uLight1Enabled ) {
+			lrd1 = normalize( light1 - i ); //light direction relative to intersection
+			tlight1 = length( light1 - i ); 
+			lightd1 = smoothstep( 0.5 * length( i - i2 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd1, i2, n2, m2, c2, t ) );
+			if( m2 == 4 ){ //attenuate shadow for refractive object
+				lightd1 *= 10.0;
+			}
+			if ( t > tlight1 ){
+				lightd1 = 1.0;
+			}
+			direct1 = max( ( 10.0 / length( lrd1 ) ) * dot( lrd1, n ) , 0.0 );
+			shade1 = global + direct1 * lightd1;
+		} else {
+			shade1 = 1.0;
+		}
+		
+		//shadow 2
+		if( uLight2Enabled ) {
+			lrd2 = normalize( light2 - i ); //light direction relative to intersection
+			tlight2 = length( light2 - i ); 
+			lightd2 = smoothstep( 0.5 * length( i - i3 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd2, i3, n3, m3, c3, t ) );
+			if( m3 == 4 ){ //attenuate shadow for refractive object
+				lightd2 *= 10.0;
+			}
+			if ( t > tlight2 ){
+				lightd2 = 1.0;
+			}
+			direct2 = max( ( 10.0 / length( lrd2 ) ) * dot( lrd2, n ) , 0.0 );
+			shade2 = global + direct2 * lightd2;
+		} else {
+			shade2 = 1.0;
+		}
+		
+		//colours
 		shade = (shade1 + shade2) / 2.0;
 		if ( m == 0 ) { //"SKY"
 			ra = 0.0;
@@ -464,9 +478,17 @@ void main(void)
         var uLight1DirLoc = gl.getUniformLocation(shaderProgram, "uLight1Dir");
         gl.uniform3f(uLight1DirLoc, guiElems.light1DirX, guiElems.light1DirY, guiElems.light1DirZ);
         
+        //light 1 flag
+        var uLight1EnabLoc = gl.getUniformLocation(shaderProgram, "uLight1Enabled");
+        gl.uniform1i(uLight1EnabLoc, guiElems.light1Enab);
+        
         //light 2 position
         var uLight2DirLoc = gl.getUniformLocation(shaderProgram, "uLight2Dir");
         gl.uniform3f(uLight2DirLoc, guiElems.light2DirX, guiElems.light2DirY, guiElems.light2DirZ);
+        
+        //light 1 flag
+        var uLight2EnabLoc = gl.getUniformLocation(shaderProgram, "uLight2Enabled");
+        gl.uniform1i(uLight2EnabLoc, guiElems.light2Enab);
         
         //camera pos
         var uCameraPosLoc = gl.getUniformLocation(shaderProgram, "uCameraPos");
@@ -562,9 +584,11 @@ void main(void)
 		light1DirX: 5.0,
 		light1DirY: 7.0,
 		light1DirZ: 2.0,
+		light1Enab: true,
 		light2DirX: -3.0,
 		light2DirY: 7.0,
 		light2DirZ: -4.0,
+		light2Enab: true,
 		cameraPosX: 0.0,
 		cameraPosY: 3.0,
 		cameraPosZ: 6.0,
@@ -595,9 +619,11 @@ void main(void)
 			f1.add( guiElems, 'light1DirX', -10.0, 10.0 ).name('Light 1 X'),
 			f1.add( guiElems, 'light1DirY', 0.1, 10.0 ).name('Light 1 Y'),
 			f1.add( guiElems, 'light1DirZ', -10.0, 10.0 ).name('Light 1 Z'),
+			f1.add( guiElems, 'light1Enab' ).name('Light 1 Enable'),
 			f1.add( guiElems, 'light2DirX', -10.0, 10.0 ).name('Light 2 X'),
 			f1.add( guiElems, 'light2DirY', 0.1, 10.0 ).name('Light 2 Y'),
 			f1.add( guiElems, 'light2DirZ', -10.0, 10.0 ).name('Light 2 Z'),
+			f1.add( guiElems, 'light2Enab' ).name('Light 2 Enable'),
 			f2.add( guiElems, 'refractiveIndex', 0.0, 1.0 ).name('Refractive Index'),
 			f2_1.add( guiElems, 'objectOneMat', {
 				matte: 1,
