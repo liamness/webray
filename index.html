@@ -756,9 +756,9 @@ void main(void)
     	
     	if(clicked) {
     		
-    		var diffX = ( new_x - old_x ) / $( window ).height() * 5;
+    		var diffX = ( new_x - old_x ) / $( "#canvas" ).height() * 5;
     		guiElems.cameraPosX += diffX;
-    		var diffY = ( new_y - old_y ) / $( window ).height() * 20;
+    		var diffY = ( new_y - old_y ) / $( "#canvas" ).height() * 20;
     		var temp = guiElems.cameraPosY + diffY;
     		if( temp > 1 && temp < 10 ) {
     			guiElems.cameraPosY = temp;
