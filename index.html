@@ -293,6 +293,8 @@ void main(void)
 	vec3 ca = vec3( 0.0 ); //colourisation
 	float lra = 1.0; //attenuation
 	
+	bool breakOut = false;
+	
 	for ( int reflections = 0; reflections < 10; reflections++ ) { 
 		//get intersection
 		d = intersect( boxPos, sphPos, sphPos2, ro, rd, i, n, m, c, t );
@@ -334,32 +336,41 @@ void main(void)
 			shade2 = 1.0;
 		}
 		
+		vec3 shadeCol = (shade1 * uLight1Color + shade2 * uLight2Color) / 2.0;
+		
 		//colours
 		if ( m == 0 ) { //"SKY"
 			ra = 0.0;
 			col = vec3( 0.2, 0.5, 0.9 ); 
+			breakOut = true;
 		}
 		if ( m == 1 ) { //MATTE ISH
 			ra = 0.0;
-			col = c * shade1 * uLight1Color + c * shade2 * uLight2Color; 
+			col = c * shadeCol;
+			breakOut = true;
 		}
 		if ( m == 2 ) { //FLOOR
 			ra = 0.3;
 			vec2 mxz = abs( fract( i.xz ) * 2.0 - 1.0 );
 			float fade = clamp( 1.0 - length( i.xz ) * 0.05, 0.0, 1.0 );
 			float fc = mix( 0.5, smoothstep( 1.0, 0.9, mxz.x + mxz.y ), fade );
-			col = vec3(fc * shade1 * uLight1Color + fc * shade2 * uLight2Color);
+			col = fc * shadeCol;
 		}
 		if ( m == 3 ) { //SHINY
 			ra = 0.2;
-			col = c * shade1 * uLight1Color + c * shade2 * uLight2Color;
+			col = c * shadeCol;
 		}
 		if ( m == 4 ) { //REFRACTIVE
 			ra = 1.0;
-			col = shade1 * vec3( 0.0, 0.0, 0.0 ) + shade2 * vec3( 0.0, 0.0, 0.0 );
+			col = vec3( 0.0, 0.0, 0.0 );
 		}
-		// attenuate reflections for next iteration
+		
 		ca += lra * col;
+		if( breakOut ) {
+			break;
+		}
+		
+		// attenuate reflections for next iteration
 		lra *= ra;
 		if( m != 4 ){
 			rd = reflect( rd, n );
@@ -596,7 +607,7 @@ void main(void)
 		light1DirX: 5.0,
 		light1DirY: 7.0,
 		light1DirZ: 2.0,
-		light1Col: [ 255, 150, 150 ],
+		light1Col: [ 200, 200, 100 ],
 		light1Enab: true,
 		light2DirX: -3.0,
 		light2DirY: 7.0,
