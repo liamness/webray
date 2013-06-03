@@ -295,6 +295,7 @@ a {
 		vec3 lrd1,lrd2,i2,i3,n2,n3; //lightray direction, shadow intersection, shadow normal (unused)
 		i2 = vec3( 0.0 ), i3 = vec3( 0.0 ); //initialise to remove artefacts
 		vec3 c = vec3( 0.0 ), c2 = vec3( 0.0 ), c3 = vec3( 0.0 ); //input colour
+		vec3 lightColor1, lightColor2; // light colours
 		vec3 col = vec3( 0.0 ); //colourisation
 		vec3 ca = vec3( 0.0 ); //colourisation
 		float lra = 1.0; //attenuation
@@ -310,40 +311,44 @@ a {
 			global = 0.3;
 			
 			//light one
+			lrd1 = normalize( light1 - i ); //light direction relative to intersection
+			tlight1 = length( light1 - i ); 
+			lightd1 = smoothstep( 0.5 * length( i - i2 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd1, i2, n2, m2, c2, t ) );
+			if( m2 == 4 ){ //attenuate shadow for refractive object
+				lightd1 *= 10.0;
+			}
+			if ( t > tlight1 ){
+				lightd1 = 1.0;
+			}
+			direct1 = max( ( 10.0 / length( lrd1 ) ) * dot( lrd1, n ) , 0.0 );
 			if( uLight1Enabled ) {
-				lrd1 = normalize( light1 - i ); //light direction relative to intersection
-				tlight1 = length( light1 - i ); 
-				lightd1 = smoothstep( 0.5 * length( i - i2 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd1, i2, n2, m2, c2, t ) );
-				if( m2 == 4 ){ //attenuate shadow for refractive object
-					lightd1 *= 10.0;
-				}
-				if ( t > tlight1 ){
-					lightd1 = 1.0;
-				}
-				direct1 = max( ( 10.0 / length( lrd1 ) ) * dot( lrd1, n ) , 0.0 );
 				shade1 = global + direct1 * lightd1;
+				lightColor1 = uLight1Color;
 			} else {
 				shade1 = 1.0;
+				lightColor1 = vec3( 1.0, 1.0, 1.0 );
 			}
 			
 			//light two
+			lrd2 = normalize( light2 - i ); //light direction relative to intersection
+			tlight2 = length( light2 - i ); 
+			lightd2 = smoothstep( 0.5 * length( i - i3 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd2, i3, n3, m3, c3, t ) );
+			if( m3 == 4 ){ //attenuate shadow for refractive object
+				lightd2 *= 10.0;
+			}
+			if ( t > tlight2 ){
+				lightd2 = 1.0;
+			}
+			direct2 = max( ( 10.0 / length( lrd2 ) ) * dot( lrd2, n ) , 0.0 );
 			if( uLight2Enabled ) {
-				lrd2 = normalize( light2 - i ); //light direction relative to intersection
-				tlight2 = length( light2 - i ); 
-				lightd2 = smoothstep( 0.5 * length( i - i3 ), 0.0, intersect( boxPos, sphPos, sphPos2, i, lrd2, i3, n3, m3, c3, t ) );
-				if( m3 == 4 ){ //attenuate shadow for refractive object
-					lightd2 *= 10.0;
-				}
-				if ( t > tlight2 ){
-					lightd2 = 1.0;
-				}
-				direct2 = max( ( 10.0 / length( lrd2 ) ) * dot( lrd2, n ) , 0.0 );
 				shade2 = global + direct2 * lightd2;
+				lightColor2 = uLight2Color;
 			} else {
 				shade2 = 1.0;
+				lightColor2 = vec3( 1.0, 1.0, 1.0 );
 			}
 			
-			vec3 shadeCol = (shade1 * uLight1Color + shade2 * uLight2Color) / 2.0;
+			vec3 shadeCol = (shade1 * lightColor1 + shade2 * lightColor2) / 2.0;
 			
 			//materials
 			if ( m == 0 ) { //"SKY"
