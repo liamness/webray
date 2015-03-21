@@ -345,6 +345,7 @@ function mouseWheel(wheel) {
     update();
 }
 
+var id1, id2;
 function touchStart(event) {
     event.preventDefault();
 
