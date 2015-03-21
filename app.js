@@ -334,12 +334,14 @@ function mouseUp(event) {
     clicked = dragged = false;
 }
 
-function mouseWheel(wheel) {
-    var wheel = event.wheelDelta;
-    var temp = guiElems.cameraPosZ - wheel * 0.005;
+function wheel(e) {
+    e.preventDefault();
+
+    var wheelDelta = (e.deltaMode === 0 ? e.deltaY : e.deltaY * 20),
+        temp = guiElems.cameraPosZ + wheelDelta * 0.005;
 
     if(temp > 4 && wheel && temp < 10) {
-     guiElems.cameraPosZ = temp;
+        guiElems.cameraPosZ = temp;
     }
 
     update();
@@ -491,14 +493,7 @@ canvas.height = window.innerHeight;
 canvas.addEventListener('mousedown', mouseDown);
 canvas.addEventListener('mousemove', mouseMove);
 canvas.addEventListener('mouseup', mouseUp);
-canvas.addEventListener('mousewheel', function(event){
-    mouseWheel(event.wheelDelta);
-    event.preventDefault();
-}, false);
-canvas.addEventListener('DOMMouseScroll', function(event){
-    mouseWheel(event.detail * 10);
-    event.preventDefault();
-}, false);
+canvas.addEventListener('wheel', wheel);
 canvas.addEventListener('touchstart', touchStart);
 canvas.addEventListener('touchend', touchEnd);
 canvas.addEventListener('touchleave', touchEnd);
